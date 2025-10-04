@@ -36,7 +36,12 @@ class Scenario(ABC):
     description: str
 
     @abstractmethod
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # pragma: no cover - abstract
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # pragma: no cover - abstract
         """Return positional and keyword arguments for the underlying workload."""
 
     @abstractmethod
@@ -73,7 +78,12 @@ class ExecutorScenario(Scenario):
 class CpuScenario(ExecutorScenario):
     """CPU-bound benchmark that counts primes using a naive sieve."""
 
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # noqa: D401
         return (limit,), {}
 
 
@@ -81,7 +91,12 @@ class CpuScenario(ExecutorScenario):
 class IoScenario(ExecutorScenario):
     """IO-bound benchmark that sleeps for a configurable duration."""
 
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # noqa: D401
         return (duration,), {}
 
 
@@ -371,7 +386,10 @@ def _measure_stdlib_submit_sync(
     for _ in range(samples):
         start = time.perf_counter()
         with _create_stdlib_executor(scenario) as executor:
-            futures = [executor.submit(func, *args, **kwargs) for _ in range(scenario.parallelism)]
+            futures = [
+                executor.submit(func, *args, **kwargs)
+                for _ in range(scenario.parallelism)
+            ]
             for future in futures:
                 future.result()
         durations.append((time.perf_counter() - start) * 1000.0)
@@ -406,149 +424,10 @@ def _measure_stdlib_submit_async(
     return asyncio.run(_runner())
 
 
-def _measure_unirun_map(
-    *,
+def _create_stdlib_executor(
     scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    durations: list[float] = []
-    hints = _executor_hints(scenario)
-    func = _dispatch_function(scenario)
-    iterable = args[0]
-    for _ in range(samples):
-        start = time.perf_counter()
-        executor = get_executor(**hints)
-        list(unirun_map(executor, func, iterable))
-        durations.append((time.perf_counter() - start) * 1000.0)
-    reset()
-    return durations
-
-
-def _measure_stdlib_map(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    durations: list[float] = []
-    func = _dispatch_function(scenario)
-    iterable = args[0]
-    for _ in range(samples):
-        start = time.perf_counter()
-        with _create_stdlib_executor(scenario) as executor:
-            list(executor.map(func, iterable))
-        durations.append((time.perf_counter() - start) * 1000.0)
-    return durations
-
-
-def _measure_unirun_to_thread(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    async def _runner() -> list[float]:
-        durations: list[float] = []
-        func = _dispatch_function(scenario)
-        for _ in range(samples):
-            start = time.perf_counter()
-            await asyncio.gather(
-                *(
-                    to_thread(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                )
-            )
-            durations.append((time.perf_counter() - start) * 1000.0)
-        reset()
-        return durations
-
-    return asyncio.run(_runner())
-
-
-def _measure_stdlib_to_thread(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    async def _runner() -> list[float]:
-        durations: list[float] = []
-        func = _dispatch_function(scenario)
-        for _ in range(samples):
-            start = time.perf_counter()
-            await asyncio.gather(
-                *(
-                    asyncio.to_thread(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                )
-            )
-            durations.append((time.perf_counter() - start) * 1000.0)
-        return durations
-
-    return asyncio.run(_runner())
-
-
-def _measure_unirun_to_process(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    async def _runner() -> list[float]:
-        durations: list[float] = []
-        func = _dispatch_function(scenario)
-        for _ in range(samples):
-            start = time.perf_counter()
-            await asyncio.gather(
-                *(
-                    to_process(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                )
-            )
-            durations.append((time.perf_counter() - start) * 1000.0)
-        reset()
-        return durations
-
-    return asyncio.run(_runner())
-
-
-def _measure_stdlib_to_process(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    async def _runner() -> list[float]:
-        durations: list[float] = []
-        func = _dispatch_function(scenario)
-        for _ in range(samples):
-            start = time.perf_counter()
-            with _create_stdlib_executor(scenario) as executor:
-                loop = asyncio.get_running_loop()
-                await asyncio.gather(
-                    *(
-                        loop.run_in_executor(
-                            executor,
-                            partial(func, *args, **kwargs),
-                        )
-                        for _ in range(scenario.parallelism)
-                    )
-                )
-            durations.append((time.perf_counter() - start) * 1000.0)
-        return durations
-
-    return asyncio.run(_runner())
-
-
-def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessPoolExecutor:
-    if scenario.workload == "io":
+) -> ThreadPoolExecutor | ProcessPoolExecutor:
+    if isinstance(scenario, IoScenario):
         return ThreadPoolExecutor(
             max_workers=scenario.parallelism,
             thread_name_prefix="unirun-native",
@@ -557,15 +436,19 @@ def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessP
 
 
 def _stdlib_sync_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.sync" if scenario.workload == "io" else "stdlib.process.sync"
+    return (
+        "stdlib.thread.sync"
+        if isinstance(scenario, IoScenario)
+        else "stdlib.process.sync"
+    )
 
 
 def _stdlib_async_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.async" if scenario.workload == "io" else "stdlib.process.async"
-
-
-def _stdlib_map_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.map" if scenario.workload == "io" else "stdlib.process.map"
+    return (
+        "stdlib.thread.async"
+        if isinstance(scenario, IoScenario)
+        else "stdlib.process.async"
+    )
 
 
 def _dispatch_function(scenario: Scenario):
@@ -638,11 +521,19 @@ def format_table(records: Sequence[BenchmarkRecord]) -> str:
             widths[idx] = max(widths[idx], len(value))
     border = " ".join("-" * width for width in widths)
     lines = [border]
-    header_line = " ".join(header.ljust(widths[idx]) for idx, header in enumerate(headers))
+    header_line = " ".join(
+        header.ljust(widths[idx])
+        for idx, header in enumerate(headers)
+    )
     lines.append(header_line)
     lines.append(border)
     for row in rows:
-        lines.append(" ".join(value.ljust(widths[idx]) for idx, value in enumerate(row)))
+        lines.append(
+            " ".join(
+                value.ljust(widths[idx])
+                for idx, value in enumerate(row)
+            )
+        )
     lines.append(border)
     return "\n".join(lines)
 

@@ -54,11 +54,16 @@ class SubInterpreterExecutor(Executor):
     def __init__(self, *, max_workers: int | None, isolated: bool) -> None:
         if interpreters is None:
             raise SubInterpreterUnavailable("interpreters module unavailable")
-        if not hasattr(interpreters, "create") or not hasattr(interpreters, "run_string"):
-            raise SubInterpreterUnavailable("interpreters module lacks required primitives")
+        has_create = hasattr(interpreters, "create")
+        has_run_string = hasattr(interpreters, "run_string")
+        if not has_create or not has_run_string:
+            message = "interpreters module lacks required primitives"
+            raise SubInterpreterUnavailable(message)
 
         cpu_count = os.cpu_count() or 1
-        workers = max_workers if (max_workers is not None and max_workers > 0) else cpu_count
+        workers = cpu_count
+        if max_workers is not None and max_workers > 0:
+            workers = max_workers
         self._max_workers = max(1, workers)
         self._isolated = isolated
         self._tasks: queue.SimpleQueue[Any] = queue.SimpleQueue()
@@ -165,7 +170,12 @@ class SubInterpreterExecutor(Executor):
                 continue
             try:
                 if run_string is not None and not callable(run):
-                    result = self._execute_with_run_string(interpreter, func, args, kwargs)
+                    result = self._execute_with_run_string(
+                        interpreter,
+                        func,
+                        args,
+                        kwargs,
+                    )
                 elif callable(run):
                     result = run(func, *args, **kwargs)  # type: ignore[misc]
                 else:  # pragma: no cover - unexpected API shape
@@ -213,12 +223,16 @@ class SubInterpreterExecutor(Executor):
         try:
             fn_bytes = pickle.dumps(func)
         except Exception as exc:
-            raise SubInterpreterUnavailable("callable must be pickleable for sub-interpreter execution") from exc
+            raise SubInterpreterUnavailable(
+                "callable must be pickleable for sub-interpreter execution",
+            ) from exc
         try:
             args_bytes = pickle.dumps(args)
             kwargs_bytes = pickle.dumps(kwargs)
         except Exception as exc:
-            raise SubInterpreterUnavailable("arguments must be pickleable for sub-interpreter execution") from exc
+            raise SubInterpreterUnavailable(
+                "arguments must be pickleable for sub-interpreter execution",
+            ) from exc
         payload = {"callable": fn_bytes, "args": args_bytes, "kwargs": kwargs_bytes}
         return base64.b64encode(pickle.dumps(payload)).decode("ascii")
 
@@ -278,7 +292,9 @@ with os.fdopen({write_fd}, "wb", closefd=True) as pipe:
 """
 
 
-def get_interpreter_executor(*, max_workers: int | None = None, isolated: bool = True) -> Executor:
+def get_interpreter_executor(
+    *, max_workers: int | None = None, isolated: bool = True
+) -> Executor:
     """Return an executor that routes work through CPython sub-interpreters.
 
     When the interpreter runtime lacks the necessary support, the function
@@ -300,7 +316,10 @@ def get_interpreter_executor(*, max_workers: int | None = None, isolated: bool =
         return current
 
     try:
-        executor = _create_subinterpreter_executor(max_workers=max_workers, isolated=isolated)
+        executor = _create_subinterpreter_executor(
+            max_workers=max_workers,
+            isolated=isolated,
+        )
     except SubInterpreterUnavailable as exc:
         _warn_subinterpreter_fallback(
             f"{exc}; using thread executor instead.",
@@ -351,7 +370,12 @@ def _create_subinterpreter_executor(
         raise SubInterpreterUnavailable(str(exc)) from exc
 
 
-def _store_executor(executor: Executor, *, max_workers: int | None, isolated: bool) -> None:
+def _store_executor(
+    executor: Executor,
+    *,
+    max_workers: int | None,
+    isolated: bool,
+) -> None:
     global _INTERPRETER_EXECUTOR, _EXECUTOR_SETTINGS
     _INTERPRETER_EXECUTOR = executor
     _EXECUTOR_SETTINGS = {"max_workers": max_workers, "isolated": isolated}

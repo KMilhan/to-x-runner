@@ -19,7 +19,10 @@ def test_detect_capabilities_shape() -> None:
 
 
 def test_detect_capabilities_free_threading_branch() -> None:
-    with mock.patch("unirun.capabilities.sysconfig.get_config_var", return_value=1), mock.patch(
+    with mock.patch(
+        "unirun.capabilities.sysconfig.get_config_var",
+        return_value=1,
+    ), mock.patch(
         "unirun.capabilities._is_gil_enabled",
         return_value=False,
     ):

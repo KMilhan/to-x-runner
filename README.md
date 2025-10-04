@@ -179,6 +179,29 @@ Pytest modules are organized by feature: one test file per concurrency surface,
 with matching `_double.py` companions to assert drop-in parity with the CPython
 stdlib.
 
+## Mutation Testing
+
+Mutation testing enforces that behavior-focused assertions fail when
+capabilities or workloads break. The project relies on the
+`ensure-compatibility-with-python-3.14` fork of [`mutmut`](https://github.com/KMilhan/mutmut)
+so experiments stay green on the Python 3.14 alphas.
+
+```bash
+# Install developer dependencies, including the patched mutmut fork
+uv sync --group dev
+
+# Run the mutation suite with the built-in pytest runner
+uv run mutmut run
+
+# Inspect surviving mutants directly in the terminal (optional)
+uv run mutmut results
+```
+
+The `[tool.mutmut]` block in `pyproject.toml` pins the mutation scope to
+`src/unirun` while letting the CLI discover tests in `tests/`. This keeps the
+suite aligned with the golden rule by mutating only the user-facing concurrency
+helpers.
+
 ## Design Notes
 
 - No runtime third-party dependencies. Native accelerators remain optional and
@@ -188,3 +211,13 @@ stdlib.
   `submit`, `map`, `as_completed`).
 - Capability detection relies solely on stdlib primitives so that behavior is
   stable across CPython releases and alternative builds (musl, manylinux, etc).
+
+## Release Automation
+
+Trigger the `Semantic Release with Girokmoji` workflow from the Actions tab to generate release notes and version tags automatically.
+
+1. Launch the workflow manually and choose the semantic version segment to bump (`patch`, `minor`, or `major`).
+2. The pipeline installs dependencies with `uv`, executes `uv run pytest`, and then invokes `girokmoji` to create a changelog (`release.md`).
+3. Successful runs push the updated tag back to the repository, upload the changelog as an artifact, and publish a GitHub Release using the generated notes.
+
+This workflow mirrors the reference pipeline in [girokmoji](https://github.com/KMilhan/girokmoji) so future tooling updates stay compatible with our release process.

@@ -7,3 +7,8 @@ lint-fix:
 
 test:
 	uv run pytest
+mutation:
+	uv run mutmut run
+
+mutation-results:
+	uv run mutmut results
