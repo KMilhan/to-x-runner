@@ -211,3 +211,13 @@ helpers.
   `submit`, `map`, `as_completed`).
 - Capability detection relies solely on stdlib primitives so that behavior is
   stable across CPython releases and alternative builds (musl, manylinux, etc).
+
+## Release Automation
+
+Trigger the `Semantic Release with Girokmoji` workflow from the Actions tab to generate release notes and version tags automatically.
+
+1. Launch the workflow manually and choose the semantic version segment to bump (`patch`, `minor`, or `major`).
+2. The pipeline installs dependencies with `uv`, executes `uv run pytest`, and then invokes `girokmoji` to create a changelog (`release.md`).
+3. Successful runs push the updated tag back to the repository, upload the changelog as an artifact, and publish a GitHub Release using the generated notes.
+
+This workflow mirrors the reference pipeline in [girokmoji](https://github.com/KMilhan/girokmoji) so future tooling updates stay compatible with our release process.
