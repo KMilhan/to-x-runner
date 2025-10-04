@@ -8,11 +8,22 @@ from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
+from typing import Any, Callable
 
-from unirun.api import get_executor, reset, submit
+from unirun.api import get_executor, map as unirun_map, reset, submit, to_process, to_thread
 from unirun.capabilities import RuntimeCapabilities, detect_capabilities
 from unirun.workloads import count_primes, mixed_workload, simulate_blocking_io
+
+
+MeasureFunc = Callable[..., list[float]]
+
+
+@dataclass(slots=True)
+class ScenarioMode:
+    """Callable handle describing how to run a benchmark mode for a scenario."""
+
+    name: str
+    measure: MeasureFunc
 
 
 @dataclass(slots=True)
@@ -28,9 +39,38 @@ class Scenario(ABC):
     def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # pragma: no cover - abstract
         """Return positional and keyword arguments for the underlying workload."""
 
+    @abstractmethod
+    def modes(self) -> Sequence[ScenarioMode]:  # pragma: no cover - abstract
+        """Return the measurement modes supported by the scenario."""
+
 
 @dataclass(slots=True)
-class CpuScenario(Scenario):
+class ExecutorScenario(Scenario):
+    """Base class for executor-driven workloads relying on ``submit`` semantics."""
+
+    def modes(self) -> Sequence[ScenarioMode]:  # noqa: D401
+        return (
+            ScenarioMode(
+                name="unirun.sync",
+                measure=partial(_measure_unirun_submit_sync, scenario=self),
+            ),
+            ScenarioMode(
+                name="unirun.async",
+                measure=partial(_measure_unirun_submit_async, scenario=self),
+            ),
+            ScenarioMode(
+                name=_stdlib_sync_mode(self),
+                measure=partial(_measure_stdlib_submit_sync, scenario=self),
+            ),
+            ScenarioMode(
+                name=_stdlib_async_mode(self),
+                measure=partial(_measure_stdlib_submit_async, scenario=self),
+            ),
+        )
+
+
+@dataclass(slots=True)
+class CpuScenario(ExecutorScenario):
     """CPU-bound benchmark that counts primes using a naive sieve."""
 
     def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
@@ -38,7 +78,7 @@ class CpuScenario(Scenario):
 
 
 @dataclass(slots=True)
-class IoScenario(Scenario):
+class IoScenario(ExecutorScenario):
     """IO-bound benchmark that sleeps for a configurable duration."""
 
     def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
@@ -46,12 +86,78 @@ class IoScenario(Scenario):
 
 
 @dataclass(slots=True)
-class MixedScenario(Scenario):
+class MixedScenario(ExecutorScenario):
     batches: int
 
     def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:
         payload = [(limit, duration) for _ in range(self.batches)]
         return (payload,), {}
+
+
+@dataclass(slots=True)
+class MapScenario(Scenario):
+    """Benchmark executor ``map`` semantics for CPU or IO workloads."""
+
+    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+        if self.workload == "cpu":
+            iterable = tuple(limit for _ in range(self.parallelism))
+        elif self.workload == "io":
+            iterable = tuple(duration for _ in range(self.parallelism))
+        else:
+            raise ValueError(f"Unsupported workload for map scenario: {self.workload}")
+        return (iterable,), {}
+
+    def modes(self) -> Sequence[ScenarioMode]:  # noqa: D401
+        return (
+            ScenarioMode(
+                name="unirun.map",
+                measure=partial(_measure_unirun_map, scenario=self),
+            ),
+            ScenarioMode(
+                name=_stdlib_map_mode(self),
+                measure=partial(_measure_stdlib_map, scenario=self),
+            ),
+        )
+
+
+@dataclass(slots=True)
+class ToThreadScenario(Scenario):
+    """Benchmark ``asyncio.to_thread`` parity via ``unirun.to_thread``."""
+
+    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+        return (duration,), {}
+
+    def modes(self) -> Sequence[ScenarioMode]:  # noqa: D401
+        return (
+            ScenarioMode(
+                name="unirun.to_thread",
+                measure=partial(_measure_unirun_to_thread, scenario=self),
+            ),
+            ScenarioMode(
+                name="stdlib.asyncio.to_thread",
+                measure=partial(_measure_stdlib_to_thread, scenario=self),
+            ),
+        )
+
+
+@dataclass(slots=True)
+class ToProcessScenario(Scenario):
+    """Benchmark ``to_process`` async bridging against the stdlib."""
+
+    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+        return (limit,), {}
+
+    def modes(self) -> Sequence[ScenarioMode]:  # noqa: D401
+        return (
+            ScenarioMode(
+                name="unirun.to_process",
+                measure=partial(_measure_unirun_to_process, scenario=self),
+            ),
+            ScenarioMode(
+                name="stdlib.asyncio.process",
+                measure=partial(_measure_stdlib_to_process, scenario=self),
+            ),
+        )
 
 
 @dataclass(slots=True)
@@ -91,11 +197,35 @@ def build_scenarios(capabilities: RuntimeCapabilities) -> list[Scenario]:
             parallelism=cpu_workers,
             description="Prime counting with naive sieve",
         ),
+        MapScenario(
+            name="cpu.primes.map",
+            workload="cpu",
+            parallelism=cpu_workers,
+            description="Prime counting via executor.map",
+        ),
+        ToProcessScenario(
+            name="cpu.to_process",
+            workload="cpu",
+            parallelism=cpu_workers,
+            description="Async bridging to processes",
+        ),
         IoScenario(
             name="io.sleep",
             workload="io",
             parallelism=io_workers,
             description="Blocking sleep to test IO threads",
+        ),
+        MapScenario(
+            name="io.sleep.map",
+            workload="io",
+            parallelism=io_workers,
+            description="Thread executor map workload",
+        ),
+        ToThreadScenario(
+            name="io.to_thread",
+            workload="io",
+            parallelism=io_workers,
+            description="Async bridging to threads",
         ),
         MixedScenario(
             name="mixed.hybrid",
@@ -155,59 +285,21 @@ def _run_scenario(
 ) -> list[BenchmarkRecord]:
     args, kwargs = scenario.args(limit=limit, duration=duration)
 
-    sync_durations = _measure_sync(
-        scenario=scenario,
-        samples=samples,
-        args=args,
-        kwargs=kwargs,
-    )
-    async_durations = _measure_async(
-        scenario=scenario,
-        samples=samples,
-        args=args,
-        kwargs=kwargs,
-    )
-    stdlib_sync_durations = _measure_stdlib_sync(
-        scenario=scenario,
-        samples=samples,
-        args=args,
-        kwargs=kwargs,
-    )
-    stdlib_async_durations = _measure_stdlib_async(
-        scenario=scenario,
-        samples=samples,
-        args=args,
-        kwargs=kwargs,
-    )
-
-    sync_record = _build_record(
-        scenario,
-        mode="unirun.sync",
-        samples=samples,
-        durations=sync_durations,
-    )
-    async_record = _build_record(
-        scenario,
-        mode="unirun.async",
-        samples=samples,
-        durations=async_durations,
-    )
-    stdlib_sync_record = _build_record(
-        scenario,
-        mode=_stdlib_sync_mode(scenario),
-        samples=samples,
-        durations=stdlib_sync_durations,
-    )
-    stdlib_async_record = _build_record(
-        scenario,
-        mode=_stdlib_async_mode(scenario),
-        samples=samples,
-        durations=stdlib_async_durations,
-    )
-    return [sync_record, async_record, stdlib_sync_record, stdlib_async_record]
+    records: list[BenchmarkRecord] = []
+    for mode in scenario.modes():
+        durations = mode.measure(samples=samples, args=args, kwargs=kwargs)
+        records.append(
+            _build_record(
+                scenario,
+                mode=mode.name,
+                samples=samples,
+                durations=durations,
+            )
+        )
+    return records
 
 
-def _measure_sync(
+def _measure_unirun_submit_sync(
     *,
     scenario: Scenario,
     samples: int,
@@ -236,7 +328,7 @@ def _measure_sync(
     return durations
 
 
-def _measure_async(
+def _measure_unirun_submit_async(
     *,
     scenario: Scenario,
     samples: int,
@@ -266,7 +358,7 @@ def _measure_async(
     return asyncio.run(_runner())
 
 
-def _measure_stdlib_sync(
+def _measure_stdlib_submit_sync(
     *,
     scenario: Scenario,
     samples: int,
@@ -285,7 +377,7 @@ def _measure_stdlib_sync(
     return durations
 
 
-def _measure_stdlib_async(
+def _measure_stdlib_submit_async(
     *,
     scenario: Scenario,
     samples: int,
@@ -313,8 +405,149 @@ def _measure_stdlib_async(
     return asyncio.run(_runner())
 
 
+def _measure_unirun_map(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    durations: list[float] = []
+    hints = _executor_hints(scenario)
+    func = _dispatch_function(scenario)
+    iterable = args[0]
+    for _ in range(samples):
+        start = time.perf_counter()
+        executor = get_executor(**hints)
+        list(unirun_map(executor, func, iterable))
+        durations.append((time.perf_counter() - start) * 1000.0)
+    reset()
+    return durations
+
+
+def _measure_stdlib_map(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    durations: list[float] = []
+    func = _dispatch_function(scenario)
+    iterable = args[0]
+    for _ in range(samples):
+        start = time.perf_counter()
+        with _create_stdlib_executor(scenario) as executor:
+            list(executor.map(func, iterable))
+        durations.append((time.perf_counter() - start) * 1000.0)
+    return durations
+
+
+def _measure_unirun_to_thread(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    async def _runner() -> list[float]:
+        durations: list[float] = []
+        func = _dispatch_function(scenario)
+        for _ in range(samples):
+            start = time.perf_counter()
+            await asyncio.gather(
+                *(
+                    to_thread(func, *args, **kwargs)
+                    for _ in range(scenario.parallelism)
+                )
+            )
+            durations.append((time.perf_counter() - start) * 1000.0)
+        reset()
+        return durations
+
+    return asyncio.run(_runner())
+
+
+def _measure_stdlib_to_thread(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    async def _runner() -> list[float]:
+        durations: list[float] = []
+        func = _dispatch_function(scenario)
+        for _ in range(samples):
+            start = time.perf_counter()
+            await asyncio.gather(
+                *(
+                    asyncio.to_thread(func, *args, **kwargs)
+                    for _ in range(scenario.parallelism)
+                )
+            )
+            durations.append((time.perf_counter() - start) * 1000.0)
+        return durations
+
+    return asyncio.run(_runner())
+
+
+def _measure_unirun_to_process(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    async def _runner() -> list[float]:
+        durations: list[float] = []
+        func = _dispatch_function(scenario)
+        for _ in range(samples):
+            start = time.perf_counter()
+            await asyncio.gather(
+                *(
+                    to_process(func, *args, **kwargs)
+                    for _ in range(scenario.parallelism)
+                )
+            )
+            durations.append((time.perf_counter() - start) * 1000.0)
+        reset()
+        return durations
+
+    return asyncio.run(_runner())
+
+
+def _measure_stdlib_to_process(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    async def _runner() -> list[float]:
+        durations: list[float] = []
+        func = _dispatch_function(scenario)
+        for _ in range(samples):
+            start = time.perf_counter()
+            with _create_stdlib_executor(scenario) as executor:
+                loop = asyncio.get_running_loop()
+                await asyncio.gather(
+                    *(
+                        loop.run_in_executor(
+                            executor,
+                            partial(func, *args, **kwargs),
+                        )
+                        for _ in range(scenario.parallelism)
+                    )
+                )
+            durations.append((time.perf_counter() - start) * 1000.0)
+        return durations
+
+    return asyncio.run(_runner())
+
+
 def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessPoolExecutor:
-    if isinstance(scenario, IoScenario):
+    if scenario.workload == "io":
         return ThreadPoolExecutor(
             max_workers=scenario.parallelism,
             thread_name_prefix="unirun-native",
@@ -323,19 +556,23 @@ def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessP
 
 
 def _stdlib_sync_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.sync" if isinstance(scenario, IoScenario) else "stdlib.process.sync"
+    return "stdlib.thread.sync" if scenario.workload == "io" else "stdlib.process.sync"
 
 
 def _stdlib_async_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.async" if isinstance(scenario, IoScenario) else "stdlib.process.async"
+    return "stdlib.thread.async" if scenario.workload == "io" else "stdlib.process.async"
+
+
+def _stdlib_map_mode(scenario: Scenario) -> str:
+    return "stdlib.thread.map" if scenario.workload == "io" else "stdlib.process.map"
 
 
 def _dispatch_function(scenario: Scenario):
-    if isinstance(scenario, CpuScenario):
+    if scenario.workload == "cpu":
         return count_primes
-    if isinstance(scenario, IoScenario):
+    if scenario.workload == "io":
         return simulate_blocking_io
-    if isinstance(scenario, MixedScenario):
+    if scenario.workload == "mixed":
         return mixed_workload
     raise ValueError(f"Unknown scenario: {scenario}")
 
@@ -413,21 +650,21 @@ def _select_scenarios(scenarios: list[Scenario], profile: str) -> list[Scenario]
     if profile == "all":
         return scenarios
     if profile == "cpu":
-        scenario_type = CpuScenario
+        workloads = {"cpu"}
     elif profile == "io":
-        scenario_type = IoScenario
+        workloads = {"io"}
     elif profile == "mixed":
-        scenario_type = MixedScenario
+        workloads = {"mixed"}
     else:
         raise ValueError(f"Unsupported profile: {profile}")
-    return [scenario for scenario in scenarios if isinstance(scenario, scenario_type)]
+    return [scenario for scenario in scenarios if scenario.workload in workloads]
 
 
 def _executor_hints(scenario: Scenario) -> dict[str, Any]:
     hints: dict[str, Any] = {"max_workers": scenario.parallelism}
-    if isinstance(scenario, CpuScenario):
+    if scenario.workload == "cpu":
         hints["cpu_bound"] = True
-    elif isinstance(scenario, IoScenario):
+    elif scenario.workload == "io":
         hints["io_bound"] = True
     return hints
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict
 
 import pytest
@@ -9,16 +10,17 @@ from unirun_bench.engine import BenchmarkRecord, format_table, run_suite
 
 def test_run_suite_cpu_profile() -> None:
     records = run_suite(profile="cpu", samples=1, limit=100, duration=0.0)
-    assert records
-    scenarios = {record.scenario for record in records}
-    assert scenarios == {"cpu.primes"}
-    modes = {record.mode for record in records}
-    assert modes == {
-        "unirun.sync",
-        "unirun.async",
-        "stdlib.process.sync",
-        "stdlib.process.async",
+    expected = {
+        ("cpu.primes", "unirun.sync"),
+        ("cpu.primes", "unirun.async"),
+        ("cpu.primes", "stdlib.process.sync"),
+        ("cpu.primes", "stdlib.process.async"),
+        ("cpu.primes.map", "unirun.map"),
+        ("cpu.primes.map", "stdlib.process.map"),
+        ("cpu.to_process", "unirun.to_process"),
+        ("cpu.to_process", "stdlib.asyncio.process"),
     }
+    assert {(record.scenario, record.mode) for record in records} == expected
 
 
 def test_run_suite_other_profiles() -> None:
@@ -28,6 +30,10 @@ def test_run_suite_other_profiles() -> None:
         ("io.sleep", "unirun.async"),
         ("io.sleep", "stdlib.thread.sync"),
         ("io.sleep", "stdlib.thread.async"),
+        ("io.sleep.map", "unirun.map"),
+        ("io.sleep.map", "stdlib.thread.map"),
+        ("io.to_thread", "unirun.to_thread"),
+        ("io.to_thread", "stdlib.asyncio.to_thread"),
     }
     mixed_records = run_suite(profile="mixed", samples=1, limit=50, duration=0.0)
     assert {(record.scenario, record.mode) for record in mixed_records} == {
@@ -43,10 +49,18 @@ def test_run_suite_other_profiles() -> None:
         ("cpu.primes", "unirun.async"),
         ("cpu.primes", "stdlib.process.sync"),
         ("cpu.primes", "stdlib.process.async"),
+        ("cpu.primes.map", "unirun.map"),
+        ("cpu.primes.map", "stdlib.process.map"),
+        ("cpu.to_process", "unirun.to_process"),
+        ("cpu.to_process", "stdlib.asyncio.process"),
         ("io.sleep", "unirun.sync"),
         ("io.sleep", "unirun.async"),
         ("io.sleep", "stdlib.thread.sync"),
         ("io.sleep", "stdlib.thread.async"),
+        ("io.sleep.map", "unirun.map"),
+        ("io.sleep.map", "stdlib.thread.map"),
+        ("io.to_thread", "unirun.to_thread"),
+        ("io.to_thread", "stdlib.asyncio.to_thread"),
         ("mixed.hybrid", "unirun.sync"),
         ("mixed.hybrid", "unirun.async"),
         ("mixed.hybrid", "stdlib.process.sync"),
@@ -128,6 +142,9 @@ def test_dispatch_function_error() -> None:
     class DummyScenario(Scenario):
         def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:
             return (), {}
+
+        def modes(self) -> Sequence:  # pragma: no cover - used for ABC compliance only
+            return ()
 
     with pytest.raises(ValueError):
         _dispatch_function(DummyScenario(name="dummy", workload="test", parallelism=1, description=""))
