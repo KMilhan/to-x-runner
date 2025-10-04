@@ -179,6 +179,29 @@ Pytest modules are organized by feature: one test file per concurrency surface,
 with matching `_double.py` companions to assert drop-in parity with the CPython
 stdlib.
 
+## Mutation Testing
+
+Mutation testing enforces that behavior-focused assertions fail when
+capabilities or workloads break. The project relies on the
+`ensure-compatibility-with-python-3.14` fork of [`mutmut`](https://github.com/KMilhan/mutmut)
+so experiments stay green on the Python 3.14 alphas.
+
+```bash
+# Install developer dependencies, including the patched mutmut fork
+uv sync --group dev
+
+# Run the mutation suite with the built-in pytest runner
+uv run mutmut run
+
+# Inspect surviving mutants directly in the terminal (optional)
+uv run mutmut results
+```
+
+The `[tool.mutmut]` block in `pyproject.toml` pins the mutation scope to
+`src/unirun` while letting the CLI discover tests in `tests/`. This keeps the
+suite aligned with the golden rule by mutating only the user-facing concurrency
+helpers.
+
 ## Design Notes
 
 - No runtime third-party dependencies. Native accelerators remain optional and
