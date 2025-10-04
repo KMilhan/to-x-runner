@@ -24,7 +24,9 @@ def test_run_cpu_bound_prefers_process_executor() -> None:
     trace = scheduler._GLOBAL_SCHEDULER.trace
     assert trace is not None
     caps = scheduler._GLOBAL_SCHEDULER.capabilities
-    expected_mode = "thread" if (not caps.gil_enabled or caps.free_threading_build) else "process"
+    expected_mode = (
+        "thread" if (not caps.gil_enabled or caps.free_threading_build) else "process"
+    )
     assert trace.resolved_mode == expected_mode
 
 
@@ -71,7 +73,9 @@ def test_none_mode_resolves_to_thread() -> None:
     assert executor is thread_executor()
     trace = scheduler._GLOBAL_SCHEDULER.trace
     assert trace is not None
-    assert trace.reason == "automation disabled; defaulting to shared thread pool"
+    assert trace.reason == (
+        "automation disabled; defaulting to shared thread pool"
+    )
 
 
 def test_config_override_forces_process() -> None:
@@ -82,7 +86,9 @@ def test_config_override_forces_process() -> None:
     trace = local_scheduler.trace
     assert trace is not None
     assert trace.resolved_mode == "process"
-    assert trace.reason == "cpu-bound hints or GIL-enabled runtime suggested process pool"
+    assert trace.reason == (
+        "cpu-bound hints or GIL-enabled runtime suggested process pool"
+    )
 
 
 def test_prefers_subinterpreter_when_supported(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,27 +102,43 @@ def test_prefers_subinterpreter_when_supported(monkeypatch: pytest.MonkeyPatch) 
     )
     base_scheduler._capabilities = patched_caps
     fake_executor = object()
-    monkeypatch.setattr(subinterpreter, "get_interpreter_executor", lambda **_: fake_executor)
-    monkeypatch.setattr(scheduler, "get_interpreter_executor", lambda **_: fake_executor)
+    monkeypatch.setattr(
+        subinterpreter,
+        "get_interpreter_executor",
+        lambda **_: fake_executor,
+    )
+    monkeypatch.setattr(
+        scheduler,
+        "get_interpreter_executor",
+        lambda **_: fake_executor,
+    )
     executor = base_scheduler.get_executor(prefers_subinterpreters=True)
     assert executor is fake_executor
     trace = base_scheduler.trace
     assert trace is not None
     assert trace.resolved_mode == "subinterpreter"
-    assert trace.reason == "caller requested sub-interpreters and runtime supports them"
+    assert trace.reason == (
+        "caller requested sub-interpreters and runtime supports them"
+    )
 
 
 def test_cpu_bound_free_threading_prefers_thread() -> None:
     base_scheduler = scheduler.Scheduler()
     caps = base_scheduler.capabilities
-    patched_caps = dataclasses.replace(caps, gil_enabled=False, free_threading_build=True)
+    patched_caps = dataclasses.replace(
+        caps,
+        gil_enabled=False,
+        free_threading_build=True,
+    )
     base_scheduler._capabilities = patched_caps
     executor = base_scheduler.get_executor(cpu_bound=True)
     assert executor is thread_executor()
     trace = base_scheduler.trace
     assert trace is not None
     assert trace.resolved_mode == "thread"
-    assert trace.reason == "io-bound or free-threaded runtime prefers thread pool"
+    assert trace.reason == (
+        "io-bound or free-threaded runtime prefers thread pool"
+    )
 
 
 def test_config_mode_preference() -> None:

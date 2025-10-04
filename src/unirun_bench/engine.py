@@ -25,7 +25,12 @@ class Scenario(ABC):
     description: str
 
     @abstractmethod
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # pragma: no cover - abstract
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # pragma: no cover - abstract
         """Return positional and keyword arguments for the underlying workload."""
 
 
@@ -33,7 +38,12 @@ class Scenario(ABC):
 class CpuScenario(Scenario):
     """CPU-bound benchmark that counts primes using a naive sieve."""
 
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # noqa: D401
         return (limit,), {}
 
 
@@ -41,7 +51,12 @@ class CpuScenario(Scenario):
 class IoScenario(Scenario):
     """IO-bound benchmark that sleeps for a configurable duration."""
 
-    def args(self, *, limit: int, duration: float) -> tuple[tuple, dict]:  # noqa: D401
+    def args(
+        self,
+        *,
+        limit: int,
+        duration: float,
+    ) -> tuple[tuple, dict]:  # noqa: D401
         return (duration,), {}
 
 
@@ -278,7 +293,10 @@ def _measure_stdlib_sync(
     for _ in range(samples):
         start = time.perf_counter()
         with _create_stdlib_executor(scenario) as executor:
-            futures = [executor.submit(func, *args, **kwargs) for _ in range(scenario.parallelism)]
+            futures = [
+                executor.submit(func, *args, **kwargs)
+                for _ in range(scenario.parallelism)
+            ]
             for future in futures:
                 future.result()
         durations.append((time.perf_counter() - start) * 1000.0)
@@ -313,7 +331,9 @@ def _measure_stdlib_async(
     return asyncio.run(_runner())
 
 
-def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessPoolExecutor:
+def _create_stdlib_executor(
+    scenario: Scenario,
+) -> ThreadPoolExecutor | ProcessPoolExecutor:
     if isinstance(scenario, IoScenario):
         return ThreadPoolExecutor(
             max_workers=scenario.parallelism,
@@ -323,11 +343,19 @@ def _create_stdlib_executor(scenario: Scenario) -> ThreadPoolExecutor | ProcessP
 
 
 def _stdlib_sync_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.sync" if isinstance(scenario, IoScenario) else "stdlib.process.sync"
+    return (
+        "stdlib.thread.sync"
+        if isinstance(scenario, IoScenario)
+        else "stdlib.process.sync"
+    )
 
 
 def _stdlib_async_mode(scenario: Scenario) -> str:
-    return "stdlib.thread.async" if isinstance(scenario, IoScenario) else "stdlib.process.async"
+    return (
+        "stdlib.thread.async"
+        if isinstance(scenario, IoScenario)
+        else "stdlib.process.async"
+    )
 
 
 def _dispatch_function(scenario: Scenario):
@@ -400,11 +428,19 @@ def format_table(records: Sequence[BenchmarkRecord]) -> str:
             widths[idx] = max(widths[idx], len(value))
     border = " ".join("-" * width for width in widths)
     lines = [border]
-    header_line = " ".join(header.ljust(widths[idx]) for idx, header in enumerate(headers))
+    header_line = " ".join(
+        header.ljust(widths[idx])
+        for idx, header in enumerate(headers)
+    )
     lines.append(header_line)
     lines.append(border)
     for row in rows:
-        lines.append(" ".join(value.ljust(widths[idx]) for idx, value in enumerate(row)))
+        lines.append(
+            " ".join(
+                value.ljust(widths[idx])
+                for idx, value in enumerate(row)
+            )
+        )
     lines.append(border)
     return "\n".join(lines)
 

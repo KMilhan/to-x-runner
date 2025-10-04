@@ -77,7 +77,11 @@ def test_format_table_no_records() -> None:
 
 
 @pytest.mark.parametrize("use_json", [False, True])
-def test_cli_outputs(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], use_json: bool) -> None:
+def test_cli_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    use_json: bool,
+) -> None:
     from unirun_bench import cli
 
     fake_record = BenchmarkRecord(
@@ -114,7 +118,12 @@ def test_select_scenarios_failure() -> None:
 
     from unirun_bench.engine import CpuScenario, _select_scenarios
 
-    scenario = CpuScenario(name="cpu.primes", workload="cpu", parallelism=1, description="")
+    scenario = CpuScenario(
+        name="cpu.primes",
+        workload="cpu",
+        parallelism=1,
+        description="",
+    )
     with pytest.raises(ValueError):
         _select_scenarios([scenario], "invalid")
 
@@ -130,5 +139,17 @@ def test_dispatch_function_error() -> None:
             return (), {}
 
     with pytest.raises(ValueError):
-        _dispatch_function(DummyScenario(name="dummy", workload="test", parallelism=1, description=""))
-    DummyScenario(name="dummy", workload="test", parallelism=1, description="").args(limit=0, duration=0.0)
+        _dispatch_function(
+            DummyScenario(
+                name="dummy",
+                workload="test",
+                parallelism=1,
+                description="",
+            )
+        )
+    DummyScenario(
+        name="dummy",
+        workload="test",
+        parallelism=1,
+        description="",
+    ).args(limit=0, duration=0.0)

@@ -108,13 +108,19 @@ class Scheduler:
 
         cpu_bound = hints.get("cpu_bound", config.cpu_bound)
         io_bound = hints.get("io_bound", config.io_bound)
-        prefer_sub = hints.get("prefers_subinterpreters", config.prefers_subinterpreters)
+        prefer_sub = hints.get(
+            "prefers_subinterpreters",
+            config.prefers_subinterpreters,
+        )
 
         if prefer_sub and self._capabilities.supports_subinterpreters:
             return "subinterpreter"
 
         if cpu_bound:
-            if not self._capabilities.gil_enabled or self._capabilities.free_threading_build:
+            if (
+                not self._capabilities.gil_enabled
+                or self._capabilities.free_threading_build
+            ):
                 return "thread"
             return "process"
 
@@ -129,12 +135,18 @@ class Scheduler:
         if mode == "thread":
             configured_workers = self._config.max_workers
             suggested_workers = self._capabilities.suggested_io_workers
-            max_workers = hints.get("max_workers", configured_workers or suggested_workers)
+            max_workers = hints.get(
+                "max_workers",
+                configured_workers or suggested_workers,
+            )
             return get_thread_pool(max_workers=max_workers)
         if mode == "process":
             configured_workers = self._config.max_workers
             suggested_workers = self._capabilities.suggested_process_workers
-            max_workers = hints.get("max_workers", configured_workers or suggested_workers)
+            max_workers = hints.get(
+                "max_workers",
+                configured_workers or suggested_workers,
+            )
             return get_process_pool(max_workers=max_workers)
         if mode == "subinterpreter":
             return get_interpreter_executor(max_workers=hints.get("max_workers"))
@@ -170,7 +182,14 @@ def submit(executor: Executor, func: Any, /, *args: Any, **kwargs: Any):
     return async_bridge.submit(executor, func, *args, **kwargs)
 
 
-def map(executor: Executor, func: Any, iterable: Any, /, *args: Any, timeout: float | None = None):
+def map(
+    executor: Executor,
+    func: Any,
+    iterable: Any,
+    /,
+    *args: Any,
+    timeout: float | None = None,
+):
     return async_bridge.map(executor, func, iterable, *args, timeout=timeout)
 
 

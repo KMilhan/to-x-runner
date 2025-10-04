@@ -19,7 +19,10 @@ def test_process_executor_returns_singleton() -> None:
     assert first is second
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="process pool hint test skipped on Windows")
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="process pool hint test skipped on Windows",
+)
 def test_process_executor_respects_max_workers_hint() -> None:
     baseline = process_executor(max_workers=1)
     updated = process_executor(max_workers=2)
@@ -27,11 +30,18 @@ def test_process_executor_respects_max_workers_hint() -> None:
     assert getattr(updated, "_max_workers", None) == 2
 
 
-@pytest.mark.skipif(len(multiprocessing.get_all_start_methods()) < 2, reason="no alternate start method available")
+@pytest.mark.skipif(
+    len(multiprocessing.get_all_start_methods()) < 2,
+    reason="no alternate start method available",
+)
 def test_process_executor_resets_on_context_change() -> None:
     reset_process_pool()
     first = get_process_pool(max_workers=1)
-    methods = [method for method in multiprocessing.get_all_start_methods() if method != _DEFAULT_CONTEXT]
+    methods = [
+        method
+        for method in multiprocessing.get_all_start_methods()
+        if method != _DEFAULT_CONTEXT
+    ]
     if not methods:
         pytest.skip("no alternate start method available")  # pragma: no cover
     try:

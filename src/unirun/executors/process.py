@@ -39,7 +39,9 @@ def get_process_pool(
 
     with _LOCK:
         if _PROCESS_POOL is None:
-            ctx = multiprocessing.get_context(desired_context) if desired_context else None
+            ctx = None
+            if desired_context:
+                ctx = multiprocessing.get_context(desired_context)
             _PROCESS_POOL = ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx)
             _record_pool_metadata(context=desired_context, pool=_PROCESS_POOL)
             _register_atexit()

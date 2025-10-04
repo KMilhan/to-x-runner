@@ -18,7 +18,10 @@ def test_run_matches_threadpool_executor() -> None:
     assert value == expected
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="process pool parity test skipped on Windows")
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="process pool parity test skipped on Windows",
+)
 def test_run_matches_process_pool() -> None:
     configure(RuntimeConfig(mode="process", auto=False))
     value = run(count_primes, 300, mode="process")
