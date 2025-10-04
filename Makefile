@@ -4,3 +4,9 @@ lint-check:
 
 lint-fix:
 	uv run ruff check . --fix --unsafe-fixes
+
+mutation:
+	uv run mutmut run
+
+mutation-results:
+	uv run mutmut results

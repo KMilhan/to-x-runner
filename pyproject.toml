@@ -29,6 +29,7 @@ benchmark = []
 [dependency-groups]
 dev = [
     "coverage",
+    "mutmut",
     "pytest",
     "ruff",
     "ty",
@@ -59,6 +60,11 @@ quote-style = "double"
 [tool.ty.environment]
 python-version = "3.14"
 
+[tool.mutmut]
+paths_to_mutate = ["src/unirun"]
+tests_dir = "tests"
+runner = "python -m pytest"
+
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
@@ -74,3 +80,6 @@ include = ["src", "README.md", "tests"]
 
 [tool.uv-dynamic-versioning]
 fallback-version = "0.0.0"
+
+[tool.uv.sources]
+mutmut = { git = "https://github.com/KMilhan/mutmut.git", rev = "ensure-compatibility-with-python-3.14" }
