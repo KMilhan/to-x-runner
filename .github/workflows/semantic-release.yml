@@ -41,7 +41,9 @@ jobs:
           git config user.email "release@girokmoji"
 
       - name: Install project dependencies
-        run: uv pip install .[benchmark]
+        run: |
+          uv venv -p 3.14
+          uv pip install .[benchmark]
 
       - name: Run test suite
         run: uv run pytest
