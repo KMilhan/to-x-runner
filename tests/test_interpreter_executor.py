@@ -32,7 +32,12 @@ def test_interpreter_executor_with_module(monkeypatch: pytest.MonkeyPatch) -> No
         def __init__(self) -> None:
             self.create = mock.Mock(side_effect=RuntimeError("unsupported"))
 
-    monkeypatch.setattr(subinterpreter, "interpreters", DummyInterpreters(), raising=False)
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        DummyInterpreters(),
+        raising=False,
+    )
 
     def raiser(*_args: object, **_kwargs: object) -> None:
         raise subinterpreter.SubInterpreterUnavailable("missing support")
@@ -76,13 +81,17 @@ def test_get_interpreter_executor_warns_once(monkeypatch: pytest.MonkeyPatch) ->
     subinterpreter.reset_interpreter_executor()
 
 
-def test_subinterpreter_executor_requires_module(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_subinterpreter_executor_requires_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(subinterpreter, "interpreters", None, raising=False)
     with pytest.raises(subinterpreter.SubInterpreterUnavailable):
         subinterpreter.SubInterpreterExecutor(max_workers=1, isolated=True)
 
 
-def test_subinterpreter_executor_requires_primitives(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_subinterpreter_executor_requires_primitives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         subinterpreter,
         "interpreters",
@@ -203,7 +212,9 @@ def test_rebuild_exception_success_and_fallback() -> None:
     assert isinstance(fallback, subinterpreter.SubInterpreterExecutionError)
 
 
-def test_warn_subinterpreter_fallback_only_once(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_warn_subinterpreter_fallback_only_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(subinterpreter, "_FALLBACK_WARNED", False)
     with pytest.warns(RuntimeWarning):
         subinterpreter._warn_subinterpreter_fallback("first")
@@ -227,7 +238,9 @@ def test_should_rebuild_detection() -> None:
     assert subinterpreter._should_rebuild(settings, None, True) is False
 
 
-def test_create_subinterpreter_executor_pass_through(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_subinterpreter_executor_pass_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def raising(**_: object) -> subinterpreter.SubInterpreterExecutor:
         raise subinterpreter.SubInterpreterUnavailable("x")
 
@@ -236,7 +249,9 @@ def test_create_subinterpreter_executor_pass_through(monkeypatch: pytest.MonkeyP
         subinterpreter._create_subinterpreter_executor(max_workers=None, isolated=True)
 
 
-def test_create_subinterpreter_executor_wraps_other_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_subinterpreter_executor_wraps_other_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def explode(**_: object) -> subinterpreter.SubInterpreterExecutor:
         raise ValueError("boom")
 
@@ -249,13 +264,20 @@ def test_create_subinterpreter_executor_wraps_other_errors(monkeypatch: pytest.M
 def test_destroy_interpreter_uses_close(monkeypatch: pytest.MonkeyPatch) -> None:
     closer = mock.Mock()
     interpreter = SimpleNamespace(close=closer)
-    monkeypatch.setattr(subinterpreter, "interpreters", SimpleNamespace(destroy=None), raising=False)
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(destroy=None),
+        raising=False,
+    )
     executor = _make_stub_executor()
     executor._destroy_interpreter(interpreter)
     closer.assert_called_once_with()
 
 
-def test_get_interpreter_executor_reuses_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_interpreter_executor_reuses_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     call_count = 0
     fake_executor = object()
 
@@ -264,7 +286,15 @@ def test_get_interpreter_executor_reuses_cached(monkeypatch: pytest.MonkeyPatch)
         call_count += 1
         return fake_executor
 
-    monkeypatch.setattr(subinterpreter, "interpreters", SimpleNamespace(create=lambda **_: None, run_string=lambda *args, **kwargs: None), raising=False)
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(
+            create=lambda **_: None,
+            run_string=lambda *args, **kwargs: None,
+        ),
+        raising=False,
+    )
     monkeypatch.setattr(subinterpreter, "_create_subinterpreter_executor", fake_create)
     monkeypatch.setattr(subinterpreter, "_register_atexit", lambda: None)
     subinterpreter.reset_interpreter_executor()
@@ -276,7 +306,9 @@ def test_get_interpreter_executor_reuses_cached(monkeypatch: pytest.MonkeyPatch)
     subinterpreter.reset_interpreter_executor()
 
 
-def test_subinterpreter_executor_handles_zero_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_subinterpreter_executor_handles_zero_threads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     if subinterpreter.interpreters is None:
         pytest.skip("sub-interpreters unavailable")  # pragma: no cover
     monkeypatch.setattr(subinterpreter, "range", lambda *_: [], raising=False)
@@ -317,7 +349,12 @@ def test_execute_with_run_string_empty_payload(monkeypatch: pytest.MonkeyPatch) 
         fd = int(script.split("os.fdopen(")[1].split(",")[0])
         os.close(fd)
 
-    monkeypatch.setattr(subinterpreter, "interpreters", SimpleNamespace(run_string=fake_run_string), raising=False)
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(run_string=fake_run_string),
+        raising=False,
+    )
     executor = _make_stub_executor()
     with pytest.raises(subinterpreter.SubInterpreterUnavailable):
         executor._execute_with_run_string(object(), simulate_blocking_io, (), {})

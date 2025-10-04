@@ -21,7 +21,10 @@ def test_to_thread_uses_shared_executor() -> None:
     assert name.startswith("unirun-thread")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="process pool not exercised on Windows in tests")
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="process pool not exercised on Windows in tests",
+)
 def test_to_process_runs_function() -> None:
     async def runner() -> None:
         result = await to_process(simulate_blocking_io, 0.0)

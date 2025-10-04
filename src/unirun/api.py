@@ -98,7 +98,9 @@ def process_executor(*, max_workers: int | None = None) -> Executor:
     return get_process_pool(max_workers=max_workers)
 
 
-def interpreter_executor(*, max_workers: int | None = None, isolated: bool = True) -> Executor:
+def interpreter_executor(
+    *, max_workers: int | None = None, isolated: bool = True
+) -> Executor:
     """Return an executor backed by sub-interpreters (falls back to threads).
 
     >>> from unirun import reset

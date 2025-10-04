@@ -30,7 +30,10 @@ def get_thread_pool(
         if _THREAD_POOL is not None:
             if max_workers is not None and max_workers != _THREAD_POOL_MAX_WORKERS:
                 should_reset = True
-            elif thread_name_prefix is not None and desired_prefix != _THREAD_POOL_PREFIX:
+            elif (
+                thread_name_prefix is not None
+                and desired_prefix != _THREAD_POOL_PREFIX
+            ):
                 should_reset = True
 
     if should_reset:
