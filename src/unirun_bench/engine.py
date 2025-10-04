@@ -154,7 +154,7 @@ class ToProcessScenario(Scenario):
                 measure=partial(_measure_unirun_to_process, scenario=self),
             ),
             ScenarioMode(
-                name="stdlib.asyncio.process",
+                name="stdlib.loop.run_in_executor",
                 measure=partial(_measure_stdlib_to_process, scenario=self),
             ),
         )
@@ -188,6 +188,7 @@ def build_scenarios(capabilities: RuntimeCapabilities) -> list[Scenario]:
     cpu_workers = max(1, min(8, capabilities.suggested_cpu_workers))
     io_workers = max(4, min(64, capabilities.suggested_io_workers))
     mixed_workers = max(1, min(8, capabilities.suggested_cpu_workers))
+    process_workers = max(1, min(8, capabilities.suggested_process_workers))
     batches = max(2, min(6, capabilities.cpu_count))
 
     return [
@@ -206,7 +207,7 @@ def build_scenarios(capabilities: RuntimeCapabilities) -> list[Scenario]:
         ToProcessScenario(
             name="cpu.to_process",
             workload="cpu",
-            parallelism=cpu_workers,
+            parallelism=process_workers,
             description="Async bridging to processes",
         ),
         IoScenario(

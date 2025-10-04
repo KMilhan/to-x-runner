@@ -18,7 +18,7 @@ def test_run_suite_cpu_profile() -> None:
         ("cpu.primes.map", "unirun.map"),
         ("cpu.primes.map", "stdlib.process.map"),
         ("cpu.to_process", "unirun.to_process"),
-        ("cpu.to_process", "stdlib.asyncio.process"),
+        ("cpu.to_process", "stdlib.loop.run_in_executor"),
     }
     assert {(record.scenario, record.mode) for record in records} == expected
 
@@ -52,7 +52,7 @@ def test_run_suite_other_profiles() -> None:
         ("cpu.primes.map", "unirun.map"),
         ("cpu.primes.map", "stdlib.process.map"),
         ("cpu.to_process", "unirun.to_process"),
-        ("cpu.to_process", "stdlib.asyncio.process"),
+        ("cpu.to_process", "stdlib.loop.run_in_executor"),
         ("io.sleep", "unirun.sync"),
         ("io.sleep", "unirun.async"),
         ("io.sleep", "stdlib.thread.sync"),
