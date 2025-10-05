@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "label": "mutation survivability",
-  "message": "pending",
-  "color": "lightgrey",
+  "message": "100.0%",
+  "color": "red",
   "namedLogo": "biohazard"
 }

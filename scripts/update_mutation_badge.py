@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import subprocess
+from collections import Counter
 from pathlib import Path
 from typing import Final
 
@@ -18,6 +19,16 @@ _MUTMUT_RESULTS_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"Incompetent\s+(?P<incompetent>\d+)",
     re.DOTALL,
 )
+
+_STATUS_NORMALIZATION: Final[dict[str, str]] = {
+    "survived": "survived",
+    "killed": "killed",
+    "timeout": "timeout",
+    "timed out": "timeout",
+    "suspicious": "suspicious",
+    "incompetent": "incompetent",
+    "no tests": "incompetent",
+}
 
 
 def _determine_color(rate: float) -> str:
@@ -35,16 +46,53 @@ def _determine_color(rate: float) -> str:
 
 
 def _parse_results(output: str) -> tuple[int, int, int, int, int]:
-    """Extract the raw mutmut counters from CLI output."""
+    """Extract mutmut counters, supporting both legacy and modern formats."""
+
+    try:
+        return _parse_summary_block(output)
+    except RuntimeError:
+        return _parse_per_mutant_statuses(output)
+
+
+def _parse_summary_block(output: str) -> tuple[int, int, int, int, int]:
+    """Parse the historical summary table that mutmut used to print."""
 
     match = _MUTMUT_RESULTS_PATTERN.search(output)
     if not match:
-        raise RuntimeError("Unable to parse mutmut results output")
+        raise RuntimeError("Unable to parse mutmut summary block")
     survived = int(match.group("survived"))
     killed = int(match.group("killed"))
     timeout = int(match.group("timeout"))
     suspicious = int(match.group("suspicious"))
     incompetent = int(match.group("incompetent"))
+    return survived, killed, timeout, suspicious, incompetent
+
+
+def _parse_per_mutant_statuses(output: str) -> tuple[int, int, int, int, int]:
+    """Aggregate counts from the per-mutant lines mutmut 3.3+ emits."""
+
+    counts: Counter[str] = Counter()
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        _, status_fragment = line.rsplit(":", 1)
+        normalized = _STATUS_NORMALIZATION.get(
+            status_fragment.strip().lower(),
+            "",  # fall back to an empty marker we can detect below
+        )
+        if not normalized:
+            continue
+        counts[normalized] += 1
+
+    if not counts:
+        raise RuntimeError("Unable to parse mutmut per-mutant statuses")
+
+    survived = counts["survived"]
+    killed = counts["killed"]
+    timeout = counts["timeout"]
+    suspicious = counts["suspicious"]
+    incompetent = counts["incompetent"]
     return survived, killed, timeout, suspicious, incompetent
 
 
