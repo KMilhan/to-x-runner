@@ -9,6 +9,18 @@ from threading import current_thread
 
 import pytest
 
+
+def _mutation_instrumentation_active() -> bool:
+    """Detect whether mutmut instrumentation is active in the current process."""
+
+    module = sys.modules.get("mutmut")
+    if module is None:
+        return False
+    config = getattr(module, "config", None)
+    if config is None:
+        return True
+    return bool(getattr(config, "is_running", True))
+
 from unirun import thread_executor, to_process, to_thread, wrap_future
 from unirun.workloads import simulate_async_io, simulate_blocking_io
 
@@ -24,6 +36,10 @@ def test_to_thread_uses_shared_executor() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="process pool not exercised on Windows in tests",
+)
+@pytest.mark.skipif(
+    _mutation_instrumentation_active(),
+    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
 )
 def test_to_process_runs_function() -> None:
     async def runner() -> None:
