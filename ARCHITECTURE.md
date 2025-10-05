@@ -120,6 +120,15 @@ async def refresh_cache(keys: list[str]) -> None:
   `as_completed`, `asyncio.to_thread`) so compat is understood as a swap-in, not
   a new abstraction.
 
+## Observability Hooks
+- `Run(..., trace=...)` accepts booleans, `DecisionTrace` sinks, or callbacks so
+  scopes can capture decisions without reaching into the scheduler directly.
+- Global helpers (`add_decision_listener`, `remove_decision_listener`) let
+  services register shared instrumentation regardless of whether they use
+  `Run` or compat imports.
+- The `observe_decisions()` context manager streams decisions to a logger,
+  enabling structured logs/metrics during targeted rollouts.
+
 ## Components & Layout
 - `src/unirun/api.py`: Houses the public helpers, including the `Run` context
   manager; keeps them as thin wrappers over executor factories so documentation

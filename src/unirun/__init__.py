@@ -28,12 +28,22 @@ from .api import (
 from .capabilities import RuntimeCapabilities, detect_capabilities
 from .config import RuntimeConfig
 from .run import Run, RunFlavor
+from .scheduler import (
+    DecisionTrace,
+    add_decision_listener,
+    observe_decisions,
+    remove_decision_listener,
+)
 
 __all__ = [
     "RuntimeCapabilities",
     "RuntimeConfig",
     "Run",
     "RunFlavor",
+    "DecisionTrace",
+    "add_decision_listener",
+    "remove_decision_listener",
+    "observe_decisions",
     "configure",
     "detect_capabilities",
     "get_executor",

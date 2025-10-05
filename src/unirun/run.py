@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import Executor
 from contextvars import ContextVar
 from typing import Literal, cast
@@ -29,7 +30,7 @@ class Run:
         max_workers: int | None = None,
         name: str | None = None,
         config: RuntimeConfig | None = None,
-        trace: DecisionTrace | bool | None = None,
+        trace: DecisionTrace | Callable[[DecisionTrace], None] | bool | None = None,
     ) -> None:
         if flavor not in _FLAVOR_TO_MODE:
             valid = ", ".join(sorted(_FLAVOR_TO_MODE))
@@ -43,9 +44,17 @@ class Run:
         self._name = name
         self._config = config
         self._trace_request = trace
-        self._trace_sink: DecisionTrace | None = (
-            trace if isinstance(trace, DecisionTrace) else None
-        )
+        self._trace_sink: DecisionTrace | None = None
+        self._trace_listener: Callable[[DecisionTrace], None] | None = None
+        self._capture_trace = False
+        if isinstance(trace, DecisionTrace):
+            self._trace_sink = trace
+            self._capture_trace = True
+        elif isinstance(trace, bool):
+            self._capture_trace = trace
+        elif callable(trace):
+            self._trace_listener = trace
+            self._capture_trace = True
         self.trace: DecisionTrace | None = None
 
         self._entered = False
@@ -173,8 +182,8 @@ class Run:
     def _record_trace(self, trace: DecisionTrace | None) -> None:
         if not trace:
             return
-        capture = isinstance(self._trace_request, bool) and self._trace_request
-        capture = capture or isinstance(self._trace_request, DecisionTrace)
+        capture = self._capture_trace or isinstance(self._trace_request, DecisionTrace)
+        capture = capture or self._trace_listener is not None
         if not capture:
             return
         self.trace = trace
@@ -186,6 +195,8 @@ class Run:
             self._trace_sink.thread_mode = trace.thread_mode
             self._trace_sink.name = trace.name
             self._trace_sink.max_workers = trace.max_workers
+        if self._trace_listener is not None:
+            self._trace_listener(trace)
 
     # ------------------------------------------------------------------
 

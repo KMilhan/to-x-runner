@@ -23,6 +23,8 @@ class RuntimeConfig:
     max_workers: int | None = None
     auto: bool = True
     thread_mode: ThreadMode = "auto"
+    force_threads: bool = False
+    force_process: bool = False
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -78,6 +80,8 @@ class RuntimeConfig:
         io_hint = _parse_bool(env.get("UNIRUN_IO_BOUND"))
         sub_hint = _parse_bool(env.get("UNIRUN_PREFERS_SUBINTERPRETERS"))
         max_workers = _parse_int(env.get("UNIRUN_MAX_WORKERS"))
+        force_threads = _parse_bool(env.get("UNIRUN_FORCE_THREADS")) or False
+        force_process = _parse_bool(env.get("UNIRUN_FORCE_PROCESS")) or False
         thread_mode_raw = env.get("UNIRUN_THREAD_MODE", "auto").strip().lower()
         thread_mode: ThreadMode
         if thread_mode_raw in {"auto", "gil", "nogil"}:
@@ -95,4 +99,6 @@ class RuntimeConfig:
             max_workers=max_workers,
             auto=auto,
             thread_mode=thread_mode,
+            force_threads=bool(force_threads),
+            force_process=bool(force_process),
         )

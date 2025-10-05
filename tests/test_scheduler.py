@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import dataclasses
+import logging
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import pytest
 
 import unirun.scheduler as scheduler
 from unirun import Run, RuntimeConfig, thread_executor
+from unirun.executors import subinterpreter
 from unirun.scheduler import ExecutorLease
 
 
@@ -72,12 +75,124 @@ def test_scheduler_executor_for_unknown_mode_defaults_to_thread() -> None:
     assert executor is thread_executor()
 
 
-def test_scheduler_reason_for_provided_mode() -> None:
-    base_scheduler = scheduler.Scheduler()
-    reason = base_scheduler._reason_for("provided", {})
-    assert reason == "used caller-provided executor"
-
-
 def test_scheduler_config_property() -> None:
     local_scheduler = scheduler.Scheduler()
     assert isinstance(local_scheduler.config, RuntimeConfig)
+
+
+def test_scheduler_force_threads_configuration() -> None:
+    config = RuntimeConfig(force_threads=True)
+    base_scheduler = scheduler.Scheduler(config=config)
+    executor = base_scheduler.get_executor()
+    assert executor is thread_executor()
+    trace = base_scheduler.trace
+    assert trace is not None
+    assert trace.resolved_mode == "thread"
+    assert "forced" in trace.reason
+
+
+def test_scheduler_force_process_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = RuntimeConfig(force_process=True)
+    base_scheduler = scheduler.Scheduler(config=config)
+    sentinel = object()
+
+    monkeypatch.setattr(scheduler, "get_process_pool", lambda **_: sentinel)
+    executor = base_scheduler.get_executor()
+    assert executor is sentinel
+    trace = base_scheduler.trace
+    assert trace is not None
+    assert trace.resolved_mode == "process"
+    assert "forced" in trace.reason
+
+
+def test_scheduler_thread_mode_gil_on_free_threaded_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RuntimeConfig(thread_mode="gil")
+    base_scheduler = scheduler.Scheduler(config=config)
+    caps = base_scheduler.capabilities
+    base_scheduler._capabilities = dataclasses.replace(
+        caps,
+        gil_enabled=False,
+        free_threading_build=True,
+    )
+    sentinel = object()
+    monkeypatch.setattr(scheduler, "get_process_pool", lambda **_: sentinel)
+    executor = base_scheduler.get_executor()
+    assert executor is sentinel
+    trace = base_scheduler.trace
+    assert trace is not None
+    assert trace.resolved_mode == "process"
+    assert "gil" in trace.reason
+
+
+def test_scheduler_thread_mode_nogil_on_gil_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RuntimeConfig(thread_mode="nogil")
+    base_scheduler = scheduler.Scheduler(config=config)
+    caps = base_scheduler.capabilities
+    base_scheduler._capabilities = dataclasses.replace(
+        caps,
+        gil_enabled=True,
+        free_threading_build=False,
+    )
+    sentinel = object()
+    monkeypatch.setattr(scheduler, "get_thread_pool", lambda **_: sentinel)
+    executor = base_scheduler.get_executor()
+    assert executor is sentinel
+    trace = base_scheduler.trace
+    assert trace is not None
+    assert trace.resolved_mode == "thread"
+    assert "nogil" in trace.reason
+
+
+def test_scheduler_subinterpreter_fallback_updates_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RuntimeConfig(prefers_subinterpreters=True)
+    base_scheduler = scheduler.Scheduler(config=config)
+    caps = base_scheduler.capabilities
+    base_scheduler._capabilities = dataclasses.replace(
+        caps,
+        supports_subinterpreters=True,
+    )
+
+    def raising(**_: object) -> subinterpreter.SubInterpreterExecutor:
+        raise subinterpreter.SubInterpreterUnavailable("boom")
+
+    monkeypatch.setattr(scheduler, "SubInterpreterExecutor", raising)
+
+    lease = base_scheduler.lease_executor(mode="auto")
+    assert base_scheduler.trace is not None
+    assert base_scheduler.trace.resolved_mode == "thread"
+    assert "fell back" in base_scheduler.trace.reason
+    lease.executor.shutdown(wait=True)
+
+
+def test_scheduler_decision_listener() -> None:
+    captured: list[scheduler.DecisionTrace] = []
+    scheduler.add_decision_listener(captured.append)
+    scheduler.get_executor()
+    assert len(captured) == 1
+    scheduler.remove_decision_listener(captured.append)
+
+
+def test_scheduler_observe_decisions(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO, logger="unirun.scheduler")
+    with scheduler.observe_decisions():
+        scheduler.get_executor()
+
+    assert "scheduler resolved" in caplog.text
+
+
+def test_scheduler_observe_decisions_custom_logger(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    logger = logging.getLogger("unirun.test-observe")
+    caplog.set_level(logging.DEBUG, logger="unirun.test-observe")
+
+    with scheduler.observe_decisions(logger=logger, level=logging.DEBUG):
+        scheduler.get_executor()
+
+    assert "scheduler resolved" in caplog.text

@@ -74,6 +74,8 @@ behalf. Opting in buys you:
   services so long-running apps stay predictable.
 - Guardrails for emerging runtimes: free-threaded builds use tuned thread
   pools, while unsupported modes fall back to safe stdlib defaults.
+- Observability hooks: `Run(trace=...)` plus `observe_decisions()` log or
+  capture scheduler choices without custom plumbing.
 
 ## Seamless `asyncio.to_thread` Upgrades
 
