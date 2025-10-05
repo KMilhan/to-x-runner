@@ -234,3 +234,89 @@ def test_mixed_scenario_marks_cpu_bound() -> None:
 
     assert hints["cpu_bound"] is True
     assert hints["max_workers"] == scenario.parallelism
+
+
+def test_stdlib_benchmarks_reuse_executor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from concurrent.futures import Future
+
+    from unirun_bench import engine
+
+    scenario = engine.IoScenario(
+        name="io.sleep",
+        workload="io",
+        parallelism=3,
+        description="",
+    )
+
+    class DummyExecutor:
+        def __init__(self) -> None:
+            self.submit_calls = 0
+            self.map_calls = 0
+
+        def submit(self, func, *args, **kwargs) -> Future:
+            self.submit_calls += 1
+            future: Future = Future()
+            future.set_result(func(*args, **kwargs))
+            return future
+
+        def map(self, func, iterable, *iterables):
+            self.map_calls += 1
+            for value in map(func, iterable, *iterables):
+                yield value
+
+        def shutdown(self, wait: bool = True) -> None:  # noqa: ARG002
+            return None
+
+    class DummyContextManager:
+        def __init__(self, executor: DummyExecutor) -> None:
+            self.executor = executor
+
+        def __enter__(self) -> DummyExecutor:
+            return self.executor
+
+        def __exit__(self, exc_type, exc_value, traceback) -> None:  # noqa: ANN001
+            self.executor.shutdown()
+
+    created: list[DummyExecutor] = []
+
+    def fake_create_stdlib_executor(_scenario: engine.Scenario) -> DummyContextManager:
+        executor = DummyExecutor()
+        created.append(executor)
+        return DummyContextManager(executor)
+
+    def fake_dispatch(_scenario: engine.Scenario):
+        return lambda *args, **kwargs: 0 if not args else args[0]
+
+    monkeypatch.setattr(engine, "_create_stdlib_executor", fake_create_stdlib_executor)
+    monkeypatch.setattr(engine, "_dispatch_function", fake_dispatch)
+
+    args, kwargs = scenario.args(limit=0, duration=0.0)
+    durations = engine._measure_stdlib_submit_sync(
+        scenario=scenario,
+        samples=4,
+        args=args,
+        kwargs=kwargs,
+    )
+
+    assert len(durations) == 4
+    assert len(created) == 1
+    assert created[0].submit_calls == scenario.parallelism * 4
+
+    created.clear()
+    map_scenario = engine.MapScenario(
+        name="io.sleep.map",
+        workload="io",
+        parallelism=3,
+        description="",
+    )
+    args, kwargs = map_scenario.args(limit=0, duration=0.0)
+    durations = engine._measure_stdlib_map(
+        scenario=map_scenario,
+        samples=2,
+        args=args,
+        kwargs=kwargs,
+    )
+
+    assert len(durations) == 2
+    assert len(created) == 1
+    assert created[0].map_calls == 2
