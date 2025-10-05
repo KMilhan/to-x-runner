@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import re
 import subprocess
 from collections import Counter
@@ -28,7 +29,13 @@ _STATUS_NORMALIZATION: Final[dict[str, str]] = {
     "suspicious": "suspicious",
     "incompetent": "incompetent",
     "no tests": "incompetent",
+    "not checked": "incompetent",
+    "skipped": "incompetent",
+    "check was interrupted by user": "suspicious",
+    "segfault": "suspicious",
 }
+
+_UNKNOWN_STATUS_FALLBACK: Final[str] = "incompetent"
 
 
 def _determine_color(rate: float) -> str:
@@ -72,6 +79,7 @@ def _parse_per_mutant_statuses(output: str) -> tuple[int, int, int, int, int]:
     """Aggregate counts from the per-mutant lines mutmut 3.3+ emits."""
 
     counts: Counter[str] = Counter()
+    unknown_statuses: set[str] = set()
     for raw_line in output.splitlines():
         line = raw_line.strip()
         if not line or ":" not in line:
@@ -79,11 +87,19 @@ def _parse_per_mutant_statuses(output: str) -> tuple[int, int, int, int, int]:
         _, status_fragment = line.rsplit(":", 1)
         normalized = _STATUS_NORMALIZATION.get(
             status_fragment.strip().lower(),
-            "",  # fall back to an empty marker we can detect below
         )
         if not normalized:
-            continue
+            normalized = _UNKNOWN_STATUS_FALLBACK
+            unknown_statuses.add(status_fragment.strip())
         counts[normalized] += 1
+
+    if unknown_statuses:
+        joined = ", ".join(sorted(unknown_statuses))
+        print(
+            f"Encountered unrecognized mutmut statuses: {joined}. "
+            f"Treating them as {_UNKNOWN_STATUS_FALLBACK}.",
+            file=sys.stderr,
+        )
 
     if not counts:
         raise RuntimeError("Unable to parse mutmut per-mutant statuses")
@@ -99,13 +115,25 @@ def _parse_per_mutant_statuses(output: str) -> tuple[int, int, int, int, int]:
 def _run_mutmut_results(mutmut_bin: str) -> str:
     """Return the CLI output for ``mutmut results``."""
 
-    completed = subprocess.run(
+    commands = (
+        [mutmut_bin, "results", "--all", "true"],
         [mutmut_bin, "results"],
-        check=True,
-        text=True,
-        capture_output=True,
     )
-    return completed.stdout
+    last_error: subprocess.CalledProcessError | None = None
+    for command in commands:
+        try:
+            completed = subprocess.run(
+                command,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            last_error = exc
+            continue
+        return completed.stdout
+    assert last_error is not None
+    raise last_error
 
 
 def _maybe_run_mutmut(mutmut_bin: str, skip_run: bool) -> None:

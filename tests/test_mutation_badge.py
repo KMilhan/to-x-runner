@@ -9,11 +9,17 @@ from pathlib import Path
 def _load_module():
     """Import the badge script as a module so tests can access helpers."""
 
-    module_path = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "update_mutation_badge.py"
-    )
+    script_relative = Path("scripts") / "update_mutation_badge.py"
+    module_path: Path | None = None
+    for base in Path(__file__).resolve().parents:
+        candidate = base / script_relative
+        if candidate.exists():
+            module_path = candidate
+            break
+    if module_path is None:
+        raise FileNotFoundError(
+            f"Unable to locate {script_relative} starting from {__file__}"
+        )
     spec = importlib.util.spec_from_file_location("update_mutation_badge", module_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -50,3 +56,19 @@ def test_parse_results_handles_per_mutant_listing() -> None:
     )
     counts = _badge._parse_results(sample)
     assert counts == (1, 1, 1, 1, 1)
+
+
+def test_parse_results_handles_additional_statuses() -> None:
+    """Validate that newer mutmut status labels are normalized."""
+
+    sample = (
+        "module.a: not checked\n"
+        "module.b: skipped\n"
+        "module.c: check was interrupted by user\n"
+        "module.d: segfault\n"
+        "module.e: killed\n"
+        "module.f: survived\n"
+        "module.g: totally unknown\n"
+    )
+    counts = _badge._parse_results(sample)
+    assert counts == (1, 1, 0, 2, 3)
