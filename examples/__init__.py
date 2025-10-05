@@ -7,6 +7,8 @@ structured demonstrations without wiring additional infrastructure.
 
 from __future__ import annotations
 
+from . import cpu_bound, io_bound, mixed_pipelines
+
 __all__ = [
     "io_bound",
     "cpu_bound",

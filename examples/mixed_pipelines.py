@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import random
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from unirun import to_process
 
 from ._structures import ExampleResult, ExampleScenario, format_result
-
 
 __all__ = [
     "convert_camera_feeds",
@@ -324,7 +324,9 @@ def _score_user(user: str) -> float:
     return round(len(user) * 0.3, 2)
 
 
-async def maintain_multiplayer_state(players: Sequence[str]) -> dict[str, dict[str, int]]:
+async def maintain_multiplayer_state(
+    players: Sequence[str],
+) -> dict[str, dict[str, int]]:
     """Handle sockets asynchronously and offload physics calculations.
 
     Args:

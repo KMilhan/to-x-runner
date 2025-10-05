@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Sequence
 from concurrent.futures import Future
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any
 
 from unirun import map as unirun_map
 from unirun import process_executor, run, submit
 
 from ._structures import ExampleResult, ExampleScenario, format_result
-
 
 __all__ = [
     "render_video_thumbnails",
@@ -70,7 +70,7 @@ def _digest_archive(payload: bytes) -> int:
     return accumulator
 
 
-def _simulate_portfolio(args: Tuple[int, int]) -> float:
+def _simulate_portfolio(args: tuple[int, int]) -> float:
     """Run a Monte Carlo iteration and return the average PnL."""
 
     sample_index, iterations = args
@@ -82,7 +82,7 @@ def _simulate_portfolio(args: Tuple[int, int]) -> float:
     return pnl / iterations
 
 
-def _train_model_variant(params: Dict[str, float]) -> float:
+def _train_model_variant(params: dict[str, float]) -> float:
     """Train a lightweight model variant returning a validation loss."""
 
     learning_rate = params.get("learning_rate", 0.01)
@@ -96,11 +96,15 @@ def _train_model_variant(params: Dict[str, float]) -> float:
     return round(abs(weight), 6)
 
 
-def _align_sequence(sequence: str) -> Tuple[str, int]:
+def _align_sequence(sequence: str) -> tuple[str, int]:
     """Align a sequence against the synthetic reference and return a score."""
 
     reference = ("ACGT" * ((len(sequence) // 4) + 1))[: len(sequence)]
-    matches = sum(1 for base, ref in zip(sequence, reference) if base == ref)
+    matches = sum(
+        1
+        for base, ref in zip(sequence, reference, strict=False)
+        if base == ref
+    )
     score = int((matches / max(len(sequence), 1)) * 100)
     return sequence, score
 
@@ -286,11 +290,11 @@ def compute_archive_digests(archives: Sequence[bytes]) -> dict[int, int]:
     """
 
     executor = process_executor()
-    futures: list[Future[int]] = []
+    futures: list[tuple[int, Future[int]]] = []
 
     for index, payload in enumerate(archives):
-        futures.append(submit(executor, _digest_archive, payload))
-    return {index: future.result() for index, future in enumerate(futures)}
+        futures.append((index, submit(executor, _digest_archive, payload)))
+    return {index: future.result() for index, future in futures}
 
 
 def run_monte_carlo_simulations(samples: int, iterations: int) -> float:

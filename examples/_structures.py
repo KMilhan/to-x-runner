@@ -1,18 +1,17 @@
 """Shared data structures for runnable example scenarios."""
-
 from __future__ import annotations
 
 import asyncio
 import inspect
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Mapping, Sequence, Tuple, TypeVar
-
+from typing import Any, Generic, TypeVar
 
 T_co = TypeVar("T_co", covariant=True)
 
 
 @dataclass(frozen=True)
-class ExampleResult(Generic[T_co]):
+class ExampleResult(Generic[T_co]):  # noqa: UP046
     """Holds the outcome of a single example invocation.
 
     Attributes:
@@ -23,11 +22,11 @@ class ExampleResult(Generic[T_co]):
 
     name: str
     output: T_co
-    tags: Tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
-class ExampleScenario(Generic[T_co]):
+class ExampleScenario(Generic[T_co]):  # noqa: UP046
     """Describes a runnable example, including the callable and its context.
 
     Attributes:
@@ -44,9 +43,9 @@ class ExampleScenario(Generic[T_co]):
     summary: str
     details: str
     entrypoint: Callable[..., T_co]
-    args: Tuple[Any, ...] = ()
+    args: tuple[Any, ...] = ()
     kwargs: Mapping[str, Any] = field(default_factory=dict)
-    tags: Tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
 
     def execute(self) -> ExampleResult[T_co]:
         """Invoke the example callable and package the output.

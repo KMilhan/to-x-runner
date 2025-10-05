@@ -10,15 +10,15 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from unirun import map as unirun_map
 from unirun import thread_executor, to_thread
 
 from ._structures import ExampleResult, ExampleScenario, format_result
-
 
 __all__ = [
     "poll_regional_shards",
@@ -166,7 +166,9 @@ async def synchronize_crm_contacts(partners: Sequence[str]) -> dict[str, datetim
     return dict(timestamps)
 
 
-async def retrieve_firmware_manifests(devices: Sequence[str]) -> dict[str, dict[str, str]]:
+async def retrieve_firmware_manifests(
+    devices: Sequence[str],
+) -> dict[str, dict[str, str]]:
     """Retrieve firmware manifests by offloading blocking probes to threads.
 
     Args:
@@ -501,7 +503,8 @@ SCENARIOS: list[ExampleScenario[Any]] = [
         summary="Collects firmware metadata from field devices.",
         details=(
             "Device management portals invoke blocking RPCs per device. Using "
-            "``to_thread`` keeps the coroutine responsive while threads handle the I/O."),
+            "``to_thread`` keeps the coroutine responsive while threads handle the I/O."
+        ),
         entrypoint=retrieve_firmware_manifests,
         args=(("sensor-a", "sensor-b", "sensor-c"),),
         tags=("io", "threads"),
