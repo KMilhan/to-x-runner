@@ -262,7 +262,11 @@ def test_stdlib_benchmarks_reuse_executor(monkeypatch: pytest.MonkeyPatch) -> No
 
         def map(self, func, iterable, *iterables):
             self.map_calls += 1
-            yield from map(func, iterable, *iterables, strict=False)
+            try:
+                iterator = map(func, iterable, *iterables, strict=False)
+            except TypeError:
+                iterator = map(func, iterable, *iterables)  # noqa: B912
+            yield from iterator
 
         def shutdown(self, wait: bool = True) -> None:  # noqa: ARG002
             return None
