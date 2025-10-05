@@ -50,3 +50,32 @@ def test_process_executor_resets_on_context_change() -> None:
         pytest.skip("alternate start method unsupported")  # pragma: no cover
     assert second is not first
     reset_process_pool()
+
+
+def test_process_executor_skips_context_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    reset_process_pool()
+    monkeypatch.setattr("unirun.executors.process._DEFAULT_CONTEXT", "", raising=False)
+
+    monkeypatch.setattr(
+        "unirun.executors.process.multiprocessing.get_context",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("context lookup should be skipped")),
+    )
+
+    contexts: list[object | None] = []
+
+    class DummyPool:
+        def __init__(self, *, max_workers=None, mp_context=None) -> None:
+            self._max_workers = max_workers
+            contexts.append(mp_context)
+
+        def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "unirun.executors.process.ProcessPoolExecutor",
+        DummyPool,
+    )
+    pool = get_process_pool()
+    assert isinstance(pool, DummyPool)
+    assert contexts == [None]
+    reset_process_pool()
