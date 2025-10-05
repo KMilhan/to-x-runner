@@ -9,6 +9,26 @@ models. The project's golden rule is simple: keep speaking in the vocabulary of
 threads, sub-interpreters, and free-threaded builds converge. The helpers work
 on CPython 3.11+, including the free-threaded builds slated for Python 3.14.
 
+> “We’re rolling 3.14 across the fleet and need every service to prove it still behaves under both the classic GIL threads and the new nogil runtime.”
+
+`Run(flavor="threads", config=RuntimeConfig(thread_mode="auto"))` keeps one code
+path adaptive across interpreters. Teams toggle `thread_mode="gil"` or
+`"nogil"` (or set `UNIRUN_THREAD_MODE`) during canary runs to compare behavior
+explicitly, without rewriting call sites.
+
+- **Explicit scopes, predictable lifetimes** (`explicit is better than implicit`, Effective Python’s “use context managers for resources”): `Run` makes the concurrency choice and lifecycle visible in one place. A developer sees `with Run(flavor="threads")` and knows exactly what resource is being managed and when it shuts down.
+- **Readable migrations** (`readability counts`, “prefer helper functions that clarify intent”): the `flavor` knob speaks stdlib language (`threads`, `processes`, `interpreters`). Optional overrides flow through explicit config objects. There’s no mystery heuristics—callers opt into them.
+- **One obvious mechanism** (`there should be one— and preferably only one —obvious way to do it`): instead of sprinkling `get_executor`, manual context managers, and custom teardown, `Run` is the single entry point for managed execution scopes. Compat stays the bridge; `Run` is where teams go when they’re ready for better ergonomics.
+- **Progressively better defaults** (“make it easy to do the right thing”): inside the scope we keep returning real stdlib executors, but we give deterministic teardown, capability-aware sizing, and instrumentation hooks automatically. Devs get a safer version of what they already know, not a new abstraction.
+- **Guided evolution** (Effective Python’s “write helper functions that clarify behavior” and “refactor acceptably by staging changes”): `Run` becomes the obvious next step after compat. Same imports, now with a structured context that can emit decision traces, support async or sync code, and honour explicit config when teams are ready.
+
+From that value statement we can articulate some concrete guarantees:
+
+1. `Run` always returns a stdlib executor, so adopting it never changes downstream APIs.
+2. Scopes are explicit—both sync and async contexts show the lifecycle boundary.
+3. Flavors stay explicit and grounded in stdlib terminology; deeper tuning uses config objects instead of ad-hoc hints.
+4. Instrumentation and fallbacks are surfaced through simple attributes/callbacks so teams can see what’s happening.
+
 ## Features
 
 - Golden rule baked in—every helper exposes familiar stdlib nouns (`Executor`,
@@ -19,8 +39,8 @@ on CPython 3.11+, including the free-threaded builds slated for Python 3.14.
 - Managed executor factories (`thread_executor()`, `process_executor()`,
   `interpreter_executor()`) that return real `concurrent.futures.Executor`
   instances with lifecycle handled for you.
-- Automatic scheduling via `get_executor(mode="auto", **hints)` and `run(...)`
-  so call sites stay synchronous while the library picks an appropriate backend.
+- Automatic scheduling via `Run(flavor="auto")` so call sites stay synchronous
+  while the library picks an appropriate backend.
 - Async bridging helpers `to_thread` / `to_process` that wrap existing
   `asyncio` patterns instead of inventing new coroutine types.
 - Benchmark harness covering micro → macro scenarios without runtime
@@ -36,11 +56,11 @@ capability detection—the underlying objects and futures stay the same.
 
 | Keep this stdlib call                     | Optional helper when you want a boost   | What changes when you upgrade            |
 | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- |
-| `Executor.submit(...).result()`          | `run(..., cpu_bound=True)`               | Capability-aware executor picked for you |
+| `Executor.submit(...).result()`          | `Run(flavor="auto")` scope               | Capability-aware executor picked for you |
 | `asyncio.to_thread(func, *args)`         | `to_thread(func, *args)`                 | Pool sizing adapts to nogil builds       |
 | `executor.map(iterable)`                 | `thread_executor().map(iterable)`        | Shared pool with managed lifecycle       |
 | `ThreadPoolExecutor()` context manager   | `thread_executor()` context manager      | Named pools plus deterministic teardown  |
-| Manual executor switching (`if cpu: ...`) | `get_executor(mode="auto", **hints)`    | One hook that delegates to capabilities  |
+| Manual executor switching (`if cpu: ...`) | `Run(flavor="auto")`                    | One scope; capabilities pick the backend |
 | Sub-interpreter experimentation          | `interpreter_executor()`                 | Standard `Executor` surface with fallback |
 
 The optional helpers still hand back stdlib objects—`thread_executor()` yields a
@@ -135,11 +155,12 @@ hatch publish
 ### Automatic execution in one call
 
 ```python
-from unirun import run
+from unirun import Run
 from unirun.workloads import count_primes
 
-result = run(count_primes, 250_000, cpu_bound=True)
-print(result)
+with Run(flavor="auto") as executor:
+    result = executor.submit(count_primes, 250_000).result()
+    print(result)
 ```
 
 ### Manual control with a managed thread pool
@@ -169,6 +190,27 @@ async def main() -> None:
 
 
 asyncio.run(main())
+```
+
+### Scoped execution with `Run`
+
+```python
+import asyncio
+
+from unirun import Run
+from unirun.workloads import simulate_blocking_io
+
+
+with Run(flavor="threads", name="ingest") as executor:
+    executor.submit(simulate_blocking_io, 0.02)
+
+
+async def hydrate_cache(keys):
+    async with Run(flavor="auto") as executor:
+        loop = asyncio.get_running_loop()
+        await asyncio.gather(
+            *(loop.run_in_executor(executor, simulate_blocking_io, 0.01) for _ in keys)
+        )
 ```
 
 ## Optional Benchmark CLI
