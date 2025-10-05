@@ -211,6 +211,16 @@ def test_rebuild_exception_success_and_fallback() -> None:
     )
     assert isinstance(fallback, subinterpreter.SubInterpreterExecutionError)
 
+    minimal = executor._rebuild_exception(
+        {
+            "exc_module": "builtins",
+            "exc_type": "RuntimeError",
+            "exc_args": (),
+            "traceback": "",
+        }
+    )
+    assert not hasattr(minimal, "_unirun_remote_traceback")
+
 
 def test_warn_subinterpreter_fallback_only_once(
     monkeypatch: pytest.MonkeyPatch,
@@ -306,11 +316,97 @@ def test_get_interpreter_executor_reuses_cached(
     subinterpreter.reset_interpreter_executor()
 
 
+def test_subinterpreter_executor_respects_max_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyThread:
+        def __init__(self, *_, **kwargs) -> None:
+            self.started = False
+            self._target = kwargs.get("target")
+            self._args = kwargs.get("args", ())
+
+        def start(self) -> None:
+            self.started = True
+
+        def join(self, *_, **__) -> None:
+            return None
+
+    class StubModule:
+        def __init__(self) -> None:
+            self.created = 0
+            self.run_string = lambda *_args, **_kwargs: None
+
+        def create(self, *_, **__):
+            self.created += 1
+            return SimpleNamespace()
+
+    monkeypatch.setattr(subinterpreter, "interpreters", StubModule(), raising=False)
+    monkeypatch.setattr(subinterpreter, "_register_atexit", lambda: None)
+    monkeypatch.setattr(subinterpreter.threading, "Thread", DummyThread)
+    monkeypatch.setattr(
+        subinterpreter.SubInterpreterExecutor,
+        "_destroy_interpreter",
+        lambda self, interp: None,
+    )
+    executor = subinterpreter.SubInterpreterExecutor(max_workers=2, isolated=True)
+    try:
+        assert executor._max_workers == 2
+        assert len(executor._threads) == 2
+        assert all(getattr(thread, "started", False) for thread in executor._threads)
+    finally:
+        executor.shutdown()
+
+
+def test_subinterpreter_executor_defaults_to_cpu_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyThread:
+        def __init__(self, *_, **kwargs) -> None:
+            self.started = False
+
+        def start(self) -> None:
+            self.started = True
+
+        def join(self, *_, **__) -> None:
+            return None
+
+    class StubModule:
+        def __init__(self) -> None:
+            self.run_string = lambda *_args, **_kwargs: None
+
+        def create(self, *_, **__):
+            return SimpleNamespace()
+
+    monkeypatch.setattr(subinterpreter, "interpreters", StubModule(), raising=False)
+    monkeypatch.setattr(subinterpreter, "_register_atexit", lambda: None)
+    monkeypatch.setattr(subinterpreter.threading, "Thread", DummyThread)
+    monkeypatch.setattr(subinterpreter, "os", SimpleNamespace(cpu_count=lambda: 4))
+    monkeypatch.setattr(
+        subinterpreter.SubInterpreterExecutor,
+        "_destroy_interpreter",
+        lambda self, interp: None,
+    )
+    executor = subinterpreter.SubInterpreterExecutor(max_workers=0, isolated=True)
+    try:
+        assert executor._max_workers == 4
+        assert len(executor._threads) == 4
+    finally:
+        executor.shutdown()
+
+
 def test_subinterpreter_executor_handles_zero_threads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if subinterpreter.interpreters is None:
-        pytest.skip("sub-interpreters unavailable")  # pragma: no cover
+        monkeypatch.setattr(
+            subinterpreter,
+            "interpreters",
+            SimpleNamespace(
+                create=lambda **_: None,
+                run_string=lambda *_args, **_kwargs: None,
+            ),
+            raising=False,
+        )
     monkeypatch.setattr(subinterpreter, "range", lambda *_: [], raising=False)
     with pytest.raises(subinterpreter.SubInterpreterUnavailable):
         subinterpreter.SubInterpreterExecutor(max_workers=1, isolated=True)
@@ -358,3 +454,128 @@ def test_execute_with_run_string_empty_payload(monkeypatch: pytest.MonkeyPatch) 
     executor = _make_stub_executor()
     with pytest.raises(subinterpreter.SubInterpreterUnavailable):
         executor._execute_with_run_string(object(), simulate_blocking_io, (), {})
+
+
+def test_subinterpreter_submit_after_shutdown() -> None:
+    executor = _make_stub_executor()
+    executor._shutdown = True
+    with pytest.raises(RuntimeError):
+        executor.submit(lambda: None)
+
+
+def test_create_interpreter_legacy_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    class LegacyModule:
+        def __init__(self) -> None:
+            self.modes: list[str] = []
+
+        def create(self, *args, **kwargs):
+            if "isolated" in kwargs:
+                raise TypeError("legacy signature")
+            if args:
+                self.modes.append(args[0])
+            return SimpleNamespace()
+
+    module = LegacyModule()
+    monkeypatch.setattr(subinterpreter, "interpreters", module, raising=False)
+    executor = _make_stub_executor()
+    executor._isolated = False
+    interpreter = executor._create_interpreter()
+    assert module.modes == ["legacy"]
+    assert isinstance(interpreter, SimpleNamespace)
+
+
+def test_destroy_interpreter_prefers_destroy(monkeypatch: pytest.MonkeyPatch) -> None:
+    destroyed: list[SimpleNamespace] = []
+
+    def destroy(target: SimpleNamespace) -> None:
+        destroyed.append(target)
+
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(destroy=destroy),
+        raising=False,
+    )
+    executor = _make_stub_executor()
+    payload = SimpleNamespace()
+    executor._destroy_interpreter(payload)
+    assert destroyed == [payload]
+
+
+def test_worker_prefers_run_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    executor = _make_stub_executor()
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(run_string=object()),
+        raising=False,
+    )
+
+    result_marker = object()
+
+    def fake_execute(self, interpreter, func, args, kwargs):
+        return result_marker
+
+    monkeypatch.setattr(
+        executor,
+        "_execute_with_run_string",
+        fake_execute.__get__(executor, subinterpreter.SubInterpreterExecutor),
+    )
+    future: Future[object] = Future()
+    executor._pending.add(future)
+    executor._tasks.put((future, lambda: None, (), {}))
+    executor._tasks.put(subinterpreter._SENTINEL)
+    executor._worker(SimpleNamespace())
+    assert future.result() is result_marker
+
+
+def test_execute_with_run_string_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run_string(interpreter, script):
+        fd = int(script.split("os.fdopen(")[1].split(",")[0])
+        outcome = {"ok": True, "value": pickle.dumps(42)}
+        os.write(fd, pickle.dumps(outcome))
+
+    monkeypatch.setattr(
+        subinterpreter,
+        "interpreters",
+        SimpleNamespace(run_string=fake_run_string),
+        raising=False,
+    )
+    executor = _make_stub_executor()
+    assert executor._execute_with_run_string(object(), simulate_blocking_io, (), {}) == 42
+
+
+def test_reset_interpreter_executor_shuts_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    class DummyExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[bool, bool]] = []
+
+        def shutdown(self, *, wait: bool, cancel_futures: bool) -> None:
+            self.calls.append((wait, cancel_futures))
+
+    dummy = DummyExecutor()
+    monkeypatch.setattr(subinterpreter, "_INTERPRETER_EXECUTOR", dummy)
+    monkeypatch.setattr(
+        subinterpreter,
+        "_EXECUTOR_SETTINGS",
+        {"max_workers": 1, "isolated": False},
+        raising=False,
+    )
+    subinterpreter.reset_interpreter_executor(cancel_futures=True)
+    assert dummy.calls == [(True, True)]
+    assert subinterpreter._INTERPRETER_EXECUTOR is None
+
+
+def test_register_atexit_registers_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
+
+    def capture(callback):
+        calls.append(callback)
+        return callback
+
+    monkeypatch.setattr(subinterpreter, "_ATEEXIT_REGISTERED", False)
+    monkeypatch.setattr(subinterpreter.atexit, "register", capture)
+    subinterpreter._register_atexit()
+    subinterpreter._register_atexit()
+    assert calls == [subinterpreter.reset_interpreter_executor]
+    subinterpreter._ATEEXIT_REGISTERED = False

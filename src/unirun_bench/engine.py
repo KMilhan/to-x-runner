@@ -374,27 +374,6 @@ def _measure_unirun_submit_async(
     return asyncio.run(_runner())
 
 
-def _measure_unirun_map(
-    *,
-    scenario: Scenario,
-    samples: int,
-    args: tuple,
-    kwargs: dict,
-) -> list[float]:
-    durations: list[float] = []
-    hints = _executor_hints(scenario)
-    func = _dispatch_function(scenario)
-    for _ in range(samples):
-        start = time.perf_counter()
-        executor = get_executor(**hints)
-        iterator = executor.map(func, *args, **kwargs)
-        for _ in iterator:
-            pass
-        durations.append((time.perf_counter() - start) * 1000.0)
-    reset()
-    return durations
-
-
 def _measure_stdlib_submit_sync(
     *,
     scenario: Scenario,
@@ -445,6 +424,25 @@ def _measure_stdlib_submit_async(
     return asyncio.run(_runner())
 
 
+def _measure_unirun_map(
+    *,
+    scenario: Scenario,
+    samples: int,
+    args: tuple,
+    kwargs: dict,
+) -> list[float]:
+    durations: list[float] = []
+    hints = _executor_hints(scenario)
+    func = _dispatch_function(scenario)
+    for _ in range(samples):
+        start = time.perf_counter()
+        executor = get_executor(**hints)
+        list(unirun_map(executor, func, *args, **kwargs))
+        durations.append((time.perf_counter() - start) * 1000.0)
+    reset()
+    return durations
+
+
 def _measure_stdlib_map(
     *,
     scenario: Scenario,
@@ -457,9 +455,7 @@ def _measure_stdlib_map(
     for _ in range(samples):
         start = time.perf_counter()
         with _create_stdlib_executor(scenario) as executor:
-            iterator = executor.map(func, *args, **kwargs)
-            for _ in iterator:
-                pass
+            list(executor.map(func, *args, **kwargs))
         durations.append((time.perf_counter() - start) * 1000.0)
     return durations
 
@@ -477,10 +473,7 @@ def _measure_unirun_to_thread(
         for _ in range(samples):
             start = time.perf_counter()
             await asyncio.gather(
-                *[
-                    to_thread(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                ]
+                *(to_thread(func, *args, **kwargs) for _ in range(scenario.parallelism))
             )
             durations.append((time.perf_counter() - start) * 1000.0)
         reset()
@@ -502,10 +495,7 @@ def _measure_stdlib_to_thread(
         for _ in range(samples):
             start = time.perf_counter()
             await asyncio.gather(
-                *[
-                    asyncio.to_thread(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                ]
+                *(asyncio.to_thread(func, *args, **kwargs) for _ in range(scenario.parallelism))
             )
             durations.append((time.perf_counter() - start) * 1000.0)
         return durations
@@ -526,10 +516,7 @@ def _measure_unirun_to_process(
         for _ in range(samples):
             start = time.perf_counter()
             await asyncio.gather(
-                *[
-                    to_process(func, *args, **kwargs)
-                    for _ in range(scenario.parallelism)
-                ]
+                *(to_process(func, *args, **kwargs) for _ in range(scenario.parallelism))
             )
             durations.append((time.perf_counter() - start) * 1000.0)
         reset()
@@ -550,13 +537,10 @@ def _measure_stdlib_to_process(
         func = _dispatch_function(scenario)
         for _ in range(samples):
             start = time.perf_counter()
-            with ProcessPoolExecutor(max_workers=scenario.parallelism) as pool:
+            with ProcessPoolExecutor(max_workers=scenario.parallelism) as executor:
                 loop = asyncio.get_running_loop()
                 jobs = [
-                    loop.run_in_executor(
-                        pool,
-                        partial(func, *args, **kwargs),
-                    )
+                    loop.run_in_executor(executor, partial(func, *args, **kwargs))
                     for _ in range(scenario.parallelism)
                 ]
                 await asyncio.gather(*jobs)

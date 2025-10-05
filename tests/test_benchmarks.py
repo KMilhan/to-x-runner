@@ -116,11 +116,15 @@ def test_format_table_no_records() -> None:
     assert format_table([]) == "No benchmark results available"
 
 
-@pytest.mark.parametrize("use_json", [False, True])
+@pytest.mark.parametrize(
+    "use_json, show_caps",
+    [(False, False), (True, False), (True, True)],
+)
 def test_cli_outputs(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     use_json: bool,
+    show_caps: bool,
 ) -> None:
     from unirun_bench import cli
 
@@ -142,14 +146,18 @@ def test_cli_outputs(
     argv = ["--samples", "1", "--profile", "cpu"]
     if use_json:
         argv.append("--json")
-        argv.append("--show-capabilities")
+        if show_caps:
+            argv.append("--show-capabilities")
 
     exit_code = cli.main(argv)
     assert exit_code == 0
     output = capsys.readouterr().out
     if use_json:
         assert "records" in output
-        assert "capabilities" in output
+        if show_caps:
+            assert "capabilities" in output
+        else:
+            assert "capabilities" not in output
     else:
         assert "cpu.primes" in output
 
@@ -196,3 +204,16 @@ def test_dispatch_function_error() -> None:
         parallelism=1,
         description="",
     ).args(limit=0, duration=0.0)
+
+
+def test_map_scenario_rejects_unknown_workload() -> None:
+    from unirun_bench.engine import MapScenario
+
+    scenario = MapScenario(
+        name="mystery",
+        workload="mystery",
+        parallelism=1,
+        description="",
+    )
+    with pytest.raises(ValueError):
+        scenario.args(limit=1, duration=0.0)
