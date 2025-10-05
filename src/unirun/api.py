@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterable
 from concurrent.futures import Executor, Future
 from typing import Any, ParamSpec, TypeVar
@@ -29,21 +30,19 @@ def run(
     max_workers: int | None = None,
     **kwargs: P.kwargs,
 ) -> T:
-    """Execute *func* synchronously using the configured scheduler.
+    warnings.warn(
+        "unirun.run is deprecated; use the Run context manager instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    """Execute *func* synchronously (deprecated).
 
-    Mirrors calling ``Executor.submit`` and ``Future.result`` while keeping the
-    API aligned with the stdlib.
+    This helper remains for backwards compatibility. New code should prefer::
 
-    >>> from concurrent.futures import ThreadPoolExecutor
-    >>> from unirun import reset
-    >>> def double(value: int) -> int:
-    ...     return value * 2
-    >>> with ThreadPoolExecutor() as pool:
-    ...     pool.submit(double, 21).result()
-    42
-    >>> run(double, 21)
-    42
-    >>> reset()
+        from unirun import Run
+
+        with Run(flavor="threads") as executor:
+            executor.submit(func, *args, **kwargs).result()
     """
 
     hints: dict[str, Any] = {
@@ -272,10 +271,11 @@ def last_decision() -> DecisionTrace | None:
     """Expose the last scheduler decision for observability.
 
     >>> from concurrent.futures import ThreadPoolExecutor
-    >>> run(lambda: 1)
-    1
-    >>> trace = last_decision()
-    >>> isinstance(trace, DecisionTrace)
+    >>> from unirun import Run
+    >>> scope = Run(flavor="threads", trace=True)
+    >>> with scope:
+    ...     pass
+    >>> isinstance(last_decision(), DecisionTrace)
     True
     >>> with ThreadPoolExecutor() as pool:
     ...     pool.submit(lambda: 1).result()

@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import pytest
 
-from unirun import RuntimeConfig, configure, run, thread_executor
+from unirun import Run, RuntimeConfig, configure, thread_executor
 from unirun import map as unirun_map
 from unirun.workloads import count_primes
 
@@ -24,7 +24,9 @@ def _mutation_instrumentation_active() -> bool:
 
 def test_run_matches_threadpool_executor() -> None:
     configure(RuntimeConfig(mode="thread", auto=False))
-    value = run(count_primes, 200, mode="thread")
+    run_scope = Run(flavor="threads", max_workers=1)
+    with run_scope as executor:
+        value = executor.submit(count_primes, 200).result()
     with ThreadPoolExecutor(max_workers=1) as pool:
         expected = pool.submit(count_primes, 200).result()
     assert value == expected
@@ -40,7 +42,9 @@ def test_run_matches_threadpool_executor() -> None:
 )
 def test_run_matches_process_pool() -> None:
     configure(RuntimeConfig(mode="process", auto=False))
-    value = run(count_primes, 300, mode="process")
+    run_scope = Run(flavor="processes", max_workers=1)
+    with run_scope as executor:
+        value = executor.submit(count_primes, 300).result()
     with ProcessPoolExecutor(max_workers=1) as pool:
         expected = pool.submit(count_primes, 300).result()
     assert value == expected

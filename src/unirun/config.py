@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ExecutorMode = Literal["auto", "thread", "process", "subinterpreter", "none"]
+ThreadMode = Literal["auto", "gil", "nogil"]
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class RuntimeConfig:
     prefers_subinterpreters: bool | None = None
     max_workers: int | None = None
     auto: bool = True
+    thread_mode: ThreadMode = "auto"
 
     @classmethod
     def from_env(cls) -> RuntimeConfig:
@@ -38,6 +40,9 @@ class RuntimeConfig:
             Boolean hint signalling that sub-interpreters should be considered first.
         ``UNIRUN_MAX_WORKERS``
             Integer limiting thread/process pool sizes chosen automatically.
+        ``UNIRUN_THREAD_MODE``
+            One of ``auto``, ``gil``, or ``nogil`` controlling how thread-based
+            executors behave when both runtime styles are available.
         """
 
         def _parse_bool(value: str | None) -> bool | None:
@@ -73,6 +78,12 @@ class RuntimeConfig:
         io_hint = _parse_bool(env.get("UNIRUN_IO_BOUND"))
         sub_hint = _parse_bool(env.get("UNIRUN_PREFERS_SUBINTERPRETERS"))
         max_workers = _parse_int(env.get("UNIRUN_MAX_WORKERS"))
+        thread_mode_raw = env.get("UNIRUN_THREAD_MODE", "auto").strip().lower()
+        thread_mode: ThreadMode
+        if thread_mode_raw in {"auto", "gil", "nogil"}:
+            thread_mode = thread_mode_raw  # type: ignore[assignment]
+        else:
+            thread_mode = "auto"
 
         auto = auto_flag if auto_flag is not None else True
 
@@ -83,4 +94,5 @@ class RuntimeConfig:
             prefers_subinterpreters=sub_hint,
             max_workers=max_workers,
             auto=auto,
+            thread_mode=thread_mode,
         )

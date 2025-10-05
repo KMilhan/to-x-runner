@@ -6,7 +6,8 @@ import pickle
 import queue
 import threading
 import warnings
-from concurrent.futures import Future
+from collections.abc import Callable
+from concurrent.futures import Executor, Future
 from types import SimpleNamespace
 from unittest import mock
 
@@ -139,15 +140,17 @@ def test_worker_uses_run_method(monkeypatch: pytest.MonkeyPatch) -> None:
             return func(*args, **kwargs)
 
     class StubModule:
+        run_string: Callable[..., object] | None
+
         def __init__(self) -> None:
             self.created = 0
+            self.run_string = None
 
         def create(self, *args, **kwargs):
             self.created += 1
             return StubInterpreter()
 
     module = StubModule()
-    module.run_string = None
     monkeypatch.setattr(subinterpreter, "interpreters", module, raising=False)
     monkeypatch.setattr(subinterpreter, "_register_atexit", lambda: None)
     executor = subinterpreter.SubInterpreterExecutor(max_workers=1, isolated=True)
@@ -199,7 +202,7 @@ def test_rebuild_exception_success_and_fallback() -> None:
         }
     )
     assert isinstance(success, ValueError)
-    assert success._unirun_remote_traceback == "trace"
+    assert getattr(success, "_unirun_remote_traceback") == "trace"  # noqa: B009
 
     fallback = executor._rebuild_exception(
         {
@@ -235,7 +238,11 @@ def test_warn_subinterpreter_fallback_only_once(
 
 
 def test_store_executor_records_settings() -> None:
-    executor = object()
+    class DummyExecutor(Executor):
+        def submit(self, *args, **kwargs):  # pragma: no cover - not exercised
+            raise NotImplementedError
+
+    executor = DummyExecutor()
     subinterpreter._store_executor(executor, max_workers=2, isolated=False)
     assert subinterpreter._INTERPRETER_EXECUTOR is executor
     assert subinterpreter._EXECUTOR_SETTINGS == {"max_workers": 2, "isolated": False}

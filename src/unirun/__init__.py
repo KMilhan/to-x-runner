@@ -27,10 +27,13 @@ from .api import (
 )
 from .capabilities import RuntimeCapabilities, detect_capabilities
 from .config import RuntimeConfig
+from .run import Run, RunFlavor
 
 __all__ = [
     "RuntimeCapabilities",
     "RuntimeConfig",
+    "Run",
+    "RunFlavor",
     "configure",
     "detect_capabilities",
     "get_executor",

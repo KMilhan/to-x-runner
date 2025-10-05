@@ -71,7 +71,7 @@ def _ensure_gil_checker() -> Callable[[], bool]:
     def _fallback_checker() -> bool:
         return True
 
-    sys._is_gil_enabled = _fallback_checker
+    sys._is_gil_enabled = _fallback_checker  # type: ignore[attr-defined]
     return _fallback_checker
 
 

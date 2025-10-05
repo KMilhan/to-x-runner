@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Final

@@ -10,6 +10,7 @@ def test_runtime_config_defaults() -> None:
     config = RuntimeConfig()
     assert config.mode == "auto"
     assert config.auto is True
+    assert config.thread_mode == "auto"
 
 
 def test_runtime_config_from_env() -> None:
@@ -22,6 +23,7 @@ def test_runtime_config_from_env() -> None:
             "UNIRUN_IO_BOUND": "no",
             "UNIRUN_PREFERS_SUBINTERPRETERS": "true",
             "UNIRUN_MAX_WORKERS": "2",
+            "UNIRUN_THREAD_MODE": "nogil",
         },
         clear=True,
     ):
@@ -33,6 +35,7 @@ def test_runtime_config_from_env() -> None:
     assert config.io_bound is False
     assert config.prefers_subinterpreters is True
     assert config.max_workers == 2
+    assert config.thread_mode == "nogil"
 
 
 def test_runtime_config_from_env_invalid_values() -> None:
@@ -50,3 +53,4 @@ def test_runtime_config_from_env_invalid_values() -> None:
     assert config.mode == "auto"
     assert config.auto is True
     assert config.max_workers is None
+    assert config.thread_mode == "auto"

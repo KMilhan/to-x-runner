@@ -103,7 +103,7 @@ async def fan_out_smtp_confirmations(messages: Sequence[str]) -> list[str]:
             await asyncio.sleep(0.02)
             return f"{message}: confirmed"
 
-    return await asyncio.gather(*(_confirm(message) for message in messages))
+    return list(await asyncio.gather(*(_confirm(message) for message in messages)))
 
 
 async def mirror_cdn_artifacts(urls: Sequence[str]) -> list[str]:
@@ -120,7 +120,7 @@ async def mirror_cdn_artifacts(urls: Sequence[str]) -> list[str]:
         await asyncio.sleep(0.01)
         return f"mirror:{url}"
 
-    return await asyncio.gather(*(_download(url) for url in urls))
+    return list(await asyncio.gather(*(_download(url) for url in urls)))
 
 
 async def backfill_rest_batches(endpoints: Sequence[str]) -> dict[str, int]:
@@ -249,7 +249,7 @@ async def ingest_webhooks(payloads: Sequence[str]) -> list[str]:
         await asyncio.sleep(0.01)
         return payload.upper()
 
-    return await asyncio.gather(*(_parse(payload) for payload in payloads))
+    return list(await asyncio.gather(*(_parse(payload) for payload in payloads)))
 
 
 async def fetch_entitlement_data(accounts: Sequence[str]) -> dict[str, int]:

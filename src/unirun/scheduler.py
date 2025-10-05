@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from concurrent.futures import Executor
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
 from .capabilities import RuntimeCapabilities, detect_capabilities
-from .config import RuntimeConfig
+from .config import RuntimeConfig, ThreadMode
 from .executors import async_bridge
 from .executors.process import get_process_pool, reset_process_pool
 from .executors.subinterpreter import (
+    SubInterpreterExecutor,
+    SubInterpreterUnavailable,
     get_interpreter_executor,
     reset_interpreter_executor,
 )
@@ -21,6 +23,9 @@ class DecisionTrace:
     hints: dict[str, Any]
     resolved_mode: str
     reason: str
+    thread_mode: ThreadMode | None = None
+    name: str | None = None
+    max_workers: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Represent the trace as plain data for logging or testing."""
@@ -30,7 +35,17 @@ class DecisionTrace:
             "hints": dict(self.hints),
             "resolved_mode": self.resolved_mode,
             "reason": self.reason,
+            "thread_mode": self.thread_mode,
+            "name": self.name,
+            "max_workers": self.max_workers,
         }
+
+
+@dataclass(slots=True)
+class ExecutorLease:
+    executor: Executor
+    owns_executor: bool
+    trace: DecisionTrace
 
 
 class Scheduler:
@@ -76,15 +91,80 @@ class Scheduler:
             )
             return provided
 
-        resolved_mode = self._resolve_mode(mode, hints)
-        executor = self._executor_for_mode(resolved_mode, hints)
+        resolved_mode = self._resolve_mode(mode, hints, self._config)
+        executor = self._executor_for_mode(
+            resolved_mode,
+            hints,
+            config=self._config,
+            leased=False,
+            thread_mode=hints.get("thread_mode"),
+            name=hints.get("name"),
+        )
         self._trace = DecisionTrace(
             mode=mode,
             hints=hints,
             resolved_mode=resolved_mode,
             reason=self._reason_for(resolved_mode, hints),
+            thread_mode=hints.get("thread_mode"),
+            name=hints.get("name"),
+            max_workers=hints.get("max_workers"),
         )
         return executor
+
+    def lease_executor(
+        self,
+        mode: str = "auto",
+        *,
+        runtime_config: RuntimeConfig | None = None,
+        executor: Executor | None = None,
+        max_workers: int | None = None,
+        name: str | None = None,
+        thread_mode: ThreadMode | None = None,
+    ) -> ExecutorLease:
+        hints: dict[str, Any] = {}
+        if executor is not None:
+            trace = DecisionTrace(
+                mode=mode,
+                hints={"executor": executor},
+                resolved_mode="provided",
+                reason="caller supplied executor instance",
+                thread_mode=thread_mode,
+                name=name,
+                max_workers=max_workers,
+            )
+            self._trace = trace
+            return ExecutorLease(executor=executor, owns_executor=False, trace=trace)
+
+        active_config = runtime_config or self._config
+        hints.update(
+            {
+                "max_workers": max_workers,
+                "name": name,
+                "thread_mode": thread_mode or active_config.thread_mode,
+                "prefers_subinterpreters": active_config.prefers_subinterpreters,
+            }
+        )
+
+        resolved_mode = self._resolve_mode(mode, hints, active_config)
+        executor_obj = self._executor_for_mode(
+            resolved_mode,
+            hints,
+            config=active_config,
+            leased=True,
+            thread_mode=hints.get("thread_mode"),
+            name=name,
+        )
+        trace = DecisionTrace(
+            mode=mode,
+            hints=hints,
+            resolved_mode=resolved_mode,
+            reason=self._reason_for(resolved_mode, hints),
+            thread_mode=hints.get("thread_mode"),
+            name=name,
+            max_workers=max_workers,
+        )
+        self._trace = trace
+        return ExecutorLease(executor=executor_obj, owns_executor=True, trace=trace)
 
     def reset(self, *, cancel_futures: bool = False) -> None:
         reset_thread_pool(cancel_futures=cancel_futures)
@@ -93,8 +173,12 @@ class Scheduler:
         self.refresh_capabilities()
         self._trace = None
 
-    def _resolve_mode(self, mode: str, hints: dict[str, Any]) -> str:
-        config = self._config
+    def _resolve_mode(
+        self,
+        mode: str,
+        hints: dict[str, Any],
+        config: RuntimeConfig,
+    ) -> str:
         if not config.auto:
             return config.mode if config.mode != "auto" else "none"
 
@@ -129,31 +213,83 @@ class Scheduler:
 
         return "thread"
 
-    def _executor_for_mode(self, mode: str, hints: dict[str, Any]) -> Executor:
+    def _executor_for_mode(
+        self,
+        mode: str,
+        hints: dict[str, Any],
+        *,
+        config: RuntimeConfig,
+        leased: bool,
+        thread_mode: ThreadMode | None,
+        name: str | None,
+    ) -> Executor:
         if mode == "none":
-            return get_thread_pool(max_workers=hints.get("max_workers"))
+            if leased:
+                prefix = name or "unirun-run-thread"
+                return ThreadPoolExecutor(
+                    max_workers=hints.get("max_workers"),
+                    thread_name_prefix=prefix,
+                )
+            return get_thread_pool(
+                max_workers=hints.get("max_workers"),
+                thread_name_prefix=name,
+            )
         if mode == "thread":
-            configured_workers = self._config.max_workers
+            configured_workers = config.max_workers
             suggested_workers = self._capabilities.suggested_io_workers
             max_workers = hints.get(
                 "max_workers",
                 configured_workers or suggested_workers,
             )
-            return get_thread_pool(max_workers=max_workers)
+            if leased:
+                prefix = name or "unirun-run-thread"
+                return ThreadPoolExecutor(
+                    max_workers=max_workers,
+                    thread_name_prefix=prefix,
+                )
+            return get_thread_pool(max_workers=max_workers, thread_name_prefix=name)
         if mode == "process":
-            configured_workers = self._config.max_workers
+            configured_workers = config.max_workers
             suggested_workers = self._capabilities.suggested_process_workers
             max_workers = hints.get(
                 "max_workers",
                 configured_workers or suggested_workers,
             )
+            if leased:
+                return ProcessPoolExecutor(max_workers=max_workers)
             return get_process_pool(max_workers=max_workers)
         if mode == "subinterpreter":
+            if leased:
+                isolated = hints.get("isolated", True)
+                try:
+                    return SubInterpreterExecutor(
+                        max_workers=hints.get("max_workers"),
+                        isolated=isolated,
+                    )
+                except SubInterpreterUnavailable:
+                    # Fallback to shared thread pool when interpreters missing.
+                    return self._executor_for_mode(
+                        "thread",
+                        hints,
+                        config=config,
+                        leased=leased,
+                        thread_mode=thread_mode,
+                        name=name,
+                    )
             return get_interpreter_executor(max_workers=hints.get("max_workers"))
         if mode == "provided":  # pragma: no cover - guardrail
             raise RuntimeError("Provided mode is reserved for user-supplied executors")
         # Default to thread pool for safety.
-        return get_thread_pool(max_workers=hints.get("max_workers"))
+        if leased:
+            prefix = name or "unirun-run-thread"
+            return ThreadPoolExecutor(
+                max_workers=hints.get("max_workers"),
+                thread_name_prefix=prefix,
+            )
+        return get_thread_pool(
+            max_workers=hints.get("max_workers"),
+            thread_name_prefix=name,
+        )
 
     def _reason_for(self, mode: str, hints: dict[str, Any]) -> str:
         if mode == "process":
@@ -201,3 +337,24 @@ def last_decision() -> DecisionTrace | None:
     """Return the most recent decision trace from the global scheduler."""
 
     return _GLOBAL_SCHEDULER.trace
+
+
+def lease_executor(
+    mode: str = "auto",
+    *,
+    runtime_config: RuntimeConfig | None = None,
+    executor: Executor | None = None,
+    max_workers: int | None = None,
+    name: str | None = None,
+    thread_mode: ThreadMode | None = None,
+) -> ExecutorLease:
+    """Acquire a managed executor suitable for scoped `Run` usage."""
+
+    return _GLOBAL_SCHEDULER.lease_executor(
+        mode=mode,
+        runtime_config=runtime_config,
+        executor=executor,
+        max_workers=max_workers,
+        name=name,
+        thread_mode=thread_mode,
+    )
