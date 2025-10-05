@@ -1,5 +1,7 @@
 # unirun
 
+![Mutation survivability](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/main/badges/mutation-survivability.json)
+
 `unirun` gives Python developers a standard-library-fluent interface for running
 "everything-to-everything" workloads across CPython's evolving execution
 models. The project's golden rule is simple: keep speaking in the vocabulary of
@@ -195,12 +197,15 @@ uv run mutmut run
 
 # Inspect surviving mutants directly in the terminal (optional)
 uv run mutmut results
+
+# Refresh the survivability badge after a mutation run
+uv run python scripts/update_mutation_badge.py --skip-run
 ```
 
-The `[tool.mutmut]` block in `pyproject.toml` pins the mutation scope to
-`src/unirun` while letting the CLI discover tests in `tests/`. This keeps the
-suite aligned with the golden rule by mutating only the user-facing concurrency
-helpers.
+The `[tool.mutmut]` block in `pyproject.toml` keeps mutation runs inside the
+`src/unirun` package while letting the CLI discover tests in `tests/`. This keeps
+the suite aligned with the golden rule by mutating only the user-facing
+concurrency helpers.
 
 ## Design Notes
 

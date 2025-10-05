@@ -2,12 +2,34 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict
+import sys
 
 import pytest
 
-from unirun_bench.engine import BenchmarkRecord, format_table, run_suite
+
+def _mutation_instrumentation_active() -> bool:
+    """Detect whether mutmut instrumentation is active in the current process."""
+
+    module = sys.modules.get("mutmut")
+    if module is None:
+        return False
+    config = getattr(module, "config", None)
+    if config is None:
+        return True
+    return bool(getattr(config, "is_running", True))
 
 
+if _mutation_instrumentation_active():
+    pytestmark = pytest.mark.skip(
+        reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+    )
+else:
+    from unirun_bench.engine import BenchmarkRecord, format_table, run_suite
+
+@pytest.mark.skipif(
+    _mutation_instrumentation_active(),
+    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+)
 def test_run_suite_cpu_profile() -> None:
     records = run_suite(profile="cpu", samples=1, limit=100, duration=0.0)
     expected = {
@@ -23,6 +45,10 @@ def test_run_suite_cpu_profile() -> None:
     assert {(record.scenario, record.mode) for record in records} == expected
 
 
+@pytest.mark.skipif(
+    _mutation_instrumentation_active(),
+    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+)
 def test_run_suite_other_profiles() -> None:
     io_records = run_suite(profile="io", samples=1, duration=0.0)
     assert {(record.scenario, record.mode) for record in io_records} == {

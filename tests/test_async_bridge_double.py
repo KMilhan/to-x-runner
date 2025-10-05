@@ -2,11 +2,25 @@ from __future__ import annotations
 
 import asyncio
 import math
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 
+import pytest
 from unirun import to_process, to_thread
 from unirun.workloads import count_primes, simulate_blocking_io
+
+
+def _mutation_instrumentation_active() -> bool:
+    """Detect whether mutmut instrumentation is active in the current process."""
+
+    module = sys.modules.get("mutmut")
+    if module is None:
+        return False
+    config = getattr(module, "config", None)
+    if config is None:
+        return True
+    return bool(getattr(config, "is_running", True))
 
 
 def test_to_thread_matches_asyncio_to_thread() -> None:
@@ -22,6 +36,10 @@ def test_to_thread_matches_asyncio_to_thread() -> None:
     asyncio.run(runner())
 
 
+@pytest.mark.skipif(
+    _mutation_instrumentation_active(),
+    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+)
 def test_to_process_matches_loop_executor() -> None:
     async def runner() -> None:
         result = await to_process(count_primes, 200)
