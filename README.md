@@ -28,17 +28,32 @@ on CPython 3.11+, including the free-threaded builds slated for Python 3.14.
 
 ## Drop-In Parity, Optional Upgrades
 
-Keep writing the stdlib code you already trust—`unirun` only steps in when you
-want smoother ergonomics or smarter defaults.
+`unirun` wraps the standard library rather than replacing it. Every helper
+returns a real `concurrent.futures.Executor` or mirrors an `asyncio`
+coroutine signature, so existing call sites keep working unchanged. Swap in the
+matching `unirun` helper only when you want tuned defaults or automatic
+capability detection—the underlying objects and futures stay the same.
 
-| Stdlib pattern you keep using              | Optional `unirun` assist                                   | What improves when you opt in                                      |
-| ----------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| `Executor.submit(...).result()`           | `run(..., cpu_bound=True)`                                 | Same synchronous call, plus capability-aware executor selection    |
-| `asyncio.to_thread(func, *args)`          | `to_thread(func, *args)`                                   | Identical signature, auto-tuned pools on nogil builds              |
-| `executor.map(iterable)`                  | `thread_executor().map(iterable)`                          | Familiar API, shared executor lifecycle handled for you            |
-| `ThreadPoolExecutor()` context managers   | `thread_executor()` context manager                        | Drop-in replacement with deterministic teardown and reset hooks    |
-| Manual executor switching (`if cpu: ...`) | `get_executor(mode="auto", **hints)`                      | One call site; capabilities decide whether threads/processes win   |
-| Sub-interpreter experimentation           | `interpreter_executor()`                                    | Presents the standard `Executor` surface with safe thread fallback |
+| Keep this stdlib call                     | Optional helper when you want a boost   | What changes when you upgrade            |
+| ---------------------------------------- | ---------------------------------------- | ---------------------------------------- |
+| `Executor.submit(...).result()`          | `run(..., cpu_bound=True)`               | Capability-aware executor picked for you |
+| `asyncio.to_thread(func, *args)`         | `to_thread(func, *args)`                 | Pool sizing adapts to nogil builds       |
+| `executor.map(iterable)`                 | `thread_executor().map(iterable)`        | Shared pool with managed lifecycle       |
+| `ThreadPoolExecutor()` context manager   | `thread_executor()` context manager      | Named pools plus deterministic teardown  |
+| Manual executor switching (`if cpu: ...`) | `get_executor(mode="auto", **hints)`    | One hook that delegates to capabilities  |
+| Sub-interpreter experimentation          | `interpreter_executor()`                 | Standard `Executor` surface with fallback |
+
+The optional helpers still hand back stdlib objects—`thread_executor()` yields a
+`ThreadPoolExecutor`, `to_thread` awaits the same values you would get from
+`asyncio.to_thread`, and `run` simply orchestrates `submit`/`result()` on your
+behalf. Opting in buys you:
+
+- Capability snapshots that choose threads, processes, or interpreters without
+  sprinkling feature flags through your code.
+- Consistent executor naming (`unirun-*`), teardown, and reset hooks across
+  services so long-running apps stay predictable.
+- Guardrails for emerging runtimes: free-threaded builds use tuned thread
+  pools, while unsupported modes fall back to safe stdlib defaults.
 
 ## Seamless `asyncio.to_thread` Upgrades
 
