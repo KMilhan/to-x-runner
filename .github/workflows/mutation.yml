@@ -1,0 +1,54 @@
+name: Mutation Survivability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mutmut:
+    name: Track mutation survivability
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest git+https://github.com/KMilhan/mutmut.git@ensure-compatibility-with-python-3.14
+
+      - name: Run mutmut suite
+        run: mutmut run
+
+      - name: Collect mutmut results
+        run: |
+          mutmut results > mutation-results.txt
+          python scripts/update_mutation_badge.py --skip-run
+
+      - name: Publish survivability summary
+        run: |
+          RESULT=$(jq -r '.message' badges/mutation-survivability.json)
+          COLOR=$(jq -r '.color' badges/mutation-survivability.json)
+          {
+            echo "## Mutation survivability"
+            echo "- Rate: ${RESULT}"
+            echo "- Badge color: ${COLOR}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload survivability artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-survivability
+          if-no-files-found: error
+          path: |
+            badges/mutation-survivability.json
+            mutation-results.txt
+            mutants/mutmut-stats.json
