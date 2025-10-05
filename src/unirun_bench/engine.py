@@ -4,16 +4,26 @@ import asyncio
 import statistics
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable
+from typing import Any
 
-from unirun.api import get_executor, map as unirun_map, reset, submit, to_process, to_thread
+from unirun.api import (
+    get_executor,
+    reset,
+    submit,
+    to_process,
+    to_thread,
+)
+from unirun.api import map as unirun_map
 from unirun.capabilities import RuntimeCapabilities, detect_capabilities
-from unirun.workloads import count_primes, mixed_workload, simulate_blocking_io
-
+from unirun.workloads import (
+    count_primes,
+    mixed_workload,
+    simulate_blocking_io,
+)
 
 MeasureFunc = Callable[..., list[float]]
 
@@ -482,9 +492,11 @@ def _measure_unirun_to_thread(
         try:
             for _ in range(samples):
                 start = time.perf_counter()
-                await asyncio.gather(
-                    *(to_thread(func, *args, **kwargs) for _ in range(scenario.parallelism))
-                )
+                tasks = [
+                    to_thread(func, *args, **kwargs)
+                    for _ in range(scenario.parallelism)
+                ]
+                await asyncio.gather(*tasks)
                 durations.append((time.perf_counter() - start) * 1000.0)
         finally:
             reset()
@@ -505,9 +517,11 @@ def _measure_stdlib_to_thread(
         func = _dispatch_function(scenario)
         for _ in range(samples):
             start = time.perf_counter()
-            await asyncio.gather(
-                *(asyncio.to_thread(func, *args, **kwargs) for _ in range(scenario.parallelism))
-            )
+            tasks = [
+                asyncio.to_thread(func, *args, **kwargs)
+                for _ in range(scenario.parallelism)
+            ]
+            await asyncio.gather(*tasks)
             durations.append((time.perf_counter() - start) * 1000.0)
         return durations
 
@@ -527,9 +541,11 @@ def _measure_unirun_to_process(
         try:
             for _ in range(samples):
                 start = time.perf_counter()
-                await asyncio.gather(
-                    *(to_process(func, *args, **kwargs) for _ in range(scenario.parallelism))
-                )
+                tasks = [
+                    to_process(func, *args, **kwargs)
+                    for _ in range(scenario.parallelism)
+                ]
+                await asyncio.gather(*tasks)
                 durations.append((time.perf_counter() - start) * 1000.0)
         finally:
             reset()
@@ -554,7 +570,10 @@ def _measure_stdlib_to_process(
             for _ in range(samples):
                 start = time.perf_counter()
                 jobs = [
-                    loop.run_in_executor(executor, partial(func, *args, **kwargs))
+                    loop.run_in_executor(
+                        executor,
+                        partial(func, *args, **kwargs),
+                    )
                     for _ in range(scenario.parallelism)
                 ]
                 await asyncio.gather(*jobs)

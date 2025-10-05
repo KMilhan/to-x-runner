@@ -22,7 +22,7 @@ def _mutation_instrumentation_active() -> bool:
 
 def test_unirun_api_doctests() -> None:
     if _mutation_instrumentation_active():
-        pytest.skip("mutmut instrumentation is incompatible with multiprocessing trampolines")
+        pytest.skip("mutmut instrumentation breaks multiprocessing trampolines")
     failure_count, _ = doctest.testmod(
         unirun.api,
         optionflags=doctest.NORMALIZE_WHITESPACE,

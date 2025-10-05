@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 from dataclasses import asdict
-import sys
 
 import pytest
 
@@ -21,14 +21,15 @@ def _mutation_instrumentation_active() -> bool:
 
 if _mutation_instrumentation_active():
     pytestmark = pytest.mark.skip(
-        reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+        reason="mutmut instrumentation breaks multiprocessing trampolines",
     )
 else:
     from unirun_bench.engine import BenchmarkRecord, format_table, run_suite
 
+
 @pytest.mark.skipif(
     _mutation_instrumentation_active(),
-    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+    reason="mutmut instrumentation breaks multiprocessing trampolines",
 )
 def test_run_suite_cpu_profile() -> None:
     records = run_suite(profile="cpu", samples=1, limit=100, duration=0.0)
@@ -47,7 +48,7 @@ def test_run_suite_cpu_profile() -> None:
 
 @pytest.mark.skipif(
     _mutation_instrumentation_active(),
-    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+    reason="mutmut instrumentation breaks multiprocessing trampolines",
 )
 def test_run_suite_other_profiles() -> None:
     io_records = run_suite(profile="io", samples=1, duration=0.0)
@@ -261,8 +262,7 @@ def test_stdlib_benchmarks_reuse_executor(monkeypatch: pytest.MonkeyPatch) -> No
 
         def map(self, func, iterable, *iterables):
             self.map_calls += 1
-            for value in map(func, iterable, *iterables):
-                yield value
+            yield from map(func, iterable, *iterables, strict=False)
 
         def shutdown(self, wait: bool = True) -> None:  # noqa: ARG002
             return None

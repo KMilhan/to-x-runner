@@ -7,6 +7,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 
 import pytest
+
 from unirun import to_process, to_thread
 from unirun.workloads import count_primes, simulate_blocking_io
 
@@ -38,7 +39,7 @@ def test_to_thread_matches_asyncio_to_thread() -> None:
 
 @pytest.mark.skipif(
     _mutation_instrumentation_active(),
-    reason="mutmut instrumentation is incompatible with multiprocessing trampolines",
+    reason="mutmut instrumentation breaks multiprocessing trampolines",
 )
 def test_to_process_matches_loop_executor() -> None:
     async def runner() -> None:

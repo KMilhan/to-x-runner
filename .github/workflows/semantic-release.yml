@@ -34,6 +34,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          allow-prereleases: true
+
+      - name: Install CPython 3.14 preview
+        run: |
+          uv python install 3.14-dev
+          uv venv --python 3.14-dev
 
       - name: Configure git identity
         run: |
@@ -41,17 +47,15 @@ jobs:
           git config user.email "release@girokmoji"
 
       - name: Install project dependencies
-        run: |
-          uv venv -p 3.14
-          uv pip install .[benchmark]
+        run: uv pip install --python 3.14-dev .[benchmark]
 
       - name: Run test suite
-        run: uv run pytest
+        run: uv run --python 3.14-dev pytest
 
       - name: Generate release notes with girokmoji
         id: girokmoji
         run: |
-          uvx --from "girokmoji@latest" girokmoji release Unirun \
+          uvx --from "girokmoji@latest" --python 3.13 girokmoji release Unirun \
             --bump ${{ inputs.bump }} \
             --repo-dir . > release.md
           latest_tag="$(git describe --tags --abbrev=0)"

@@ -4,8 +4,8 @@ import os
 import platform
 import sys
 import sysconfig
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +71,7 @@ def _ensure_gil_checker() -> Callable[[], bool]:
     def _fallback_checker() -> bool:
         return True
 
-    setattr(sys, "_is_gil_enabled", _fallback_checker)
+    sys._is_gil_enabled = _fallback_checker
     return _fallback_checker
 
 

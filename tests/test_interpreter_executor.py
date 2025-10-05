@@ -542,7 +542,15 @@ def test_execute_with_run_string_success(monkeypatch: pytest.MonkeyPatch) -> Non
         raising=False,
     )
     executor = _make_stub_executor()
-    assert executor._execute_with_run_string(object(), simulate_blocking_io, (), {}) == 42
+    assert (
+        executor._execute_with_run_string(
+            object(),
+            simulate_blocking_io,
+            (),
+            {},
+        )
+        == 42
+    )
 
 
 def test_reset_interpreter_executor_shuts_down(monkeypatch: pytest.MonkeyPatch) -> None:

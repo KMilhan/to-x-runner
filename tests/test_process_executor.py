@@ -56,9 +56,12 @@ def test_process_executor_skips_context_lookup(monkeypatch: pytest.MonkeyPatch) 
     reset_process_pool()
     monkeypatch.setattr("unirun.executors.process._DEFAULT_CONTEXT", "", raising=False)
 
+    def _fail_context_lookup(*_args, **_kwargs):
+        raise AssertionError("context lookup should be skipped")
+
     monkeypatch.setattr(
         "unirun.executors.process.multiprocessing.get_context",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("context lookup should be skipped")),
+        _fail_context_lookup,
     )
 
     contexts: list[object | None] = []
