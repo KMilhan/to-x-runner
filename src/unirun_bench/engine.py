@@ -692,6 +692,9 @@ def _executor_hints(scenario: Scenario) -> dict[str, Any]:
         hints["cpu_bound"] = True
     elif scenario.workload == "io":
         hints["io_bound"] = True
+    elif scenario.workload == "mixed":
+        # Mixed workloads include CPU bursts, so we prefer the process pool.
+        hints["cpu_bound"] = True
     return hints
 
 

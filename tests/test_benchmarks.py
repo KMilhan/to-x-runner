@@ -217,3 +217,20 @@ def test_map_scenario_rejects_unknown_workload() -> None:
     )
     with pytest.raises(ValueError):
         scenario.args(limit=1, duration=0.0)
+
+
+def test_mixed_scenario_marks_cpu_bound() -> None:
+    from unirun_bench.engine import MixedScenario, _executor_hints
+
+    scenario = MixedScenario(
+        name="mixed.hybrid",
+        workload="mixed",
+        parallelism=2,
+        description="",
+        batches=2,
+    )
+
+    hints = _executor_hints(scenario)
+
+    assert hints["cpu_bound"] is True
+    assert hints["max_workers"] == scenario.parallelism
