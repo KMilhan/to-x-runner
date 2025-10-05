@@ -5,6 +5,7 @@ import platform
 import sys
 import sysconfig
 from dataclasses import dataclass
+from typing import Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,10 +61,22 @@ def detect_capabilities() -> RuntimeCapabilities:
     )
 
 
-def _is_gil_enabled() -> bool:
+def _ensure_gil_checker() -> Callable[[], bool]:
+    """Return a callable mirroring ``sys._is_gil_enabled`` semantics."""
+
     checker = getattr(sys, "_is_gil_enabled", None)
-    if checker is None:  # Python < 3.13 lacks the helper, assume enabled.
+    if checker is not None:
+        return checker
+
+    def _fallback_checker() -> bool:
         return True
+
+    setattr(sys, "_is_gil_enabled", _fallback_checker)
+    return _fallback_checker
+
+
+def _is_gil_enabled() -> bool:
+    checker = _ensure_gil_checker()
     try:
         return bool(checker())
     except RuntimeError:
