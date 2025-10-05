@@ -165,7 +165,8 @@ invoke the optional CLI module without affecting core installs:
 
 Explore a curated set of 60 real-world workloads where `unirun` keeps the
 standard library vocabulary front and center while scaling across interpreters by
-running the scripts in [`examples/`](examples/).
+running the scripts in [`examples/`](examples/) or importing the structured
+catalog documented in [`examples/README.md`](examples/README.md).
 
 ```bash
 python -m unirun_bench --profile all --samples 5 --json
