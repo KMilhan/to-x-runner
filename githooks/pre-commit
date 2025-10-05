@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "[unirun] uv is required for linting. Install from https://github.com/astral-sh/uv" >&2
+  exit 1
+fi
+
+echo "[unirun] running lint-check via uv"
+make lint-check
