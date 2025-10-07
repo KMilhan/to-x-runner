@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from . import compat
 from .api import (
     configure,
     get_executor,
@@ -58,6 +59,7 @@ __all__ = [
     "to_process",
     "to_thread",
     "wrap_future",
+    "compat",
 ]
 
 try:
