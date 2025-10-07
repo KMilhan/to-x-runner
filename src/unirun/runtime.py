@@ -131,8 +131,13 @@ async def gather(*aws: Awaitable[Any]) -> list[Any]:
         async def _collect(index: int, awaitable: Awaitable[Any]) -> None:
             results[index] = await awaitable
 
-        async with asyncio.TaskGroup():  # type: ignore[attr-defined]
-            await asyncio.gather(*[_collect(idx, aw) for idx, aw in enumerate(aws)])
+        try:
+            async with asyncio.TaskGroup() as tg:  # type: ignore[attr-defined]
+                for idx, awaitable in enumerate(aws):
+                    tg.create_task(_collect(idx, awaitable))
+        except* BaseException as exc_group:
+            primary = exc_group.exceptions[0]
+            raise primary
         return results
     return list(await asyncio.gather(*aws))
 

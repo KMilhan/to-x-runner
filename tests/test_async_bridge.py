@@ -10,6 +10,7 @@ from threading import current_thread
 import pytest
 
 from unirun import thread_executor, to_process, to_thread, wrap_future
+from unirun.runtime import gather as runtime_gather
 from unirun.workloads import simulate_async_io, simulate_blocking_io
 
 
@@ -75,3 +76,43 @@ def test_simulate_async_workload() -> None:
         assert elapsed >= 0.01
 
     asyncio.run(runner())
+
+
+@pytest.mark.asyncio()
+@pytest.mark.skipif(
+    not hasattr(asyncio, "TaskGroup"),
+    reason="TaskGroup is unavailable on this interpreter",
+)
+async def test_runtime_gather_preserves_input_order() -> None:
+    async def produce(value: int, delay: float) -> int:
+        await asyncio.sleep(delay)
+        return value
+
+    coroutines = [produce(idx, delay) for idx, delay in enumerate((0.02, 0.01, 0.0))]
+    results = await runtime_gather(*coroutines)
+    assert results == [0, 1, 2]
+
+
+@pytest.mark.asyncio()
+@pytest.mark.skipif(
+    not hasattr(asyncio, "TaskGroup"),
+    reason="TaskGroup is unavailable on this interpreter",
+)
+async def test_runtime_gather_cancels_siblings_on_error() -> None:
+    cancel_event = asyncio.Event()
+
+    async def slow() -> None:
+        try:
+            await asyncio.sleep(0.2)
+        except asyncio.CancelledError:  # pragma: no cover - defensive branch
+            cancel_event.set()
+            raise
+
+    async def boom() -> None:
+        await asyncio.sleep(0.01)
+        raise RuntimeError("failure")
+
+    with pytest.raises(RuntimeError):
+        await runtime_gather(slow(), boom())
+
+    await asyncio.wait_for(cancel_event.wait(), timeout=0.1)
