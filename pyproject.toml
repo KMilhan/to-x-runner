@@ -63,6 +63,12 @@ quote-style = "double"
 [tool.ty.environment]
 python-version = "3.14"
 
+[tool.pytest.ini_options]
+markers = [
+    "cpython_contract: CPython regression coverage against the compat surface.",
+    "slow: Denotes tests that are intentionally slow or platform specific.",
+]
+
 [tool.mutmut]
 paths_to_mutate = ["src/unirun"]
 tests_dirs = ["tests"]

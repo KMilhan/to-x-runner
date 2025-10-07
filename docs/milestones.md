@@ -3,7 +3,7 @@
 ## Current Stage
 - Value narrative, documentation structure, and architectural contracts centred on `Run` and `compat` are in place, but the library surface still reflects the previous helper set (`run()`, `get_executor`, hint flags).
 - `RuntimeConfig.thread_mode` (and matching environment toggles) are documented yet unimplemented; `Run` itself does not exist in code, nor does the scheduler bridge required to honour the new signature.
-- Compat scaffolding and CPython parity test harnesses are not wired up; verification relies on the existing pytest suite only.
+- Compat harnesses now execute via `make test-compat`, layering CPython regression modules onto our pytest run and reporting waivers for current gaps.
 
 ## Next Best Step
 - Implement the `Run` context manager (sync and async), `RuntimeConfig.thread_mode`, and environment toggles (`UNIRUN_THREAD_MODE`). Wire them into the scheduler so the documented behaviour is real, and add smoke tests exercising `flavor="threads"` across GIL vs nogil builds.

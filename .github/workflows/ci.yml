@@ -52,6 +52,17 @@ jobs:
       - name: Run pytest
         run: pytest
 
+  compat:
+    name: Compat Harness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Execute compat parity suite
+        run: make test-compat
+
   benchmark:
     name: Benchmark (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
