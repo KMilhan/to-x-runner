@@ -16,18 +16,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install ruff
-      - name: Run Ruff lint
-        run: ruff check .
+      - name: Sync dependencies
+        run: uv sync --group dev --locked --python ${{ matrix.python-version }}
+      - name: Run lint suite
+        run: make lint-check
 
   test:
     name: Test (py${{ matrix.python-version }})
@@ -39,18 +35,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest
+      - name: Sync dependencies
+        run: uv sync --group dev --locked --python ${{ matrix.python-version }}
       - name: Run pytest
-        run: pytest
+        run: make test
 
   benchmark:
     name: Benchmark (py${{ matrix.python-version }})
@@ -62,14 +54,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .[benchmark]
+      - name: Sync dependencies
+        run: uv sync --extra benchmark --locked --python ${{ matrix.python-version }}
       - name: Run benchmark suite
-        run: python -m unirun_bench --profile all --samples 1 --duration 0.05 --limit 50000 --json
+        run: uv run python -m unirun_bench --profile all --samples 1 --duration 0.05 --limit 50000 --json

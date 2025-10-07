@@ -14,24 +14,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest git+https://github.com/KMilhan/mutmut.git@ensure-compatibility-with-python-3.14
+      - name: Sync dependencies
+        run: uv sync --group dev --locked --python 3.12
 
       - name: Run mutmut suite
-        run: mutmut run
+        run: uv run mutmut run
 
       - name: Collect mutmut results
         run: |
-          mutmut results > mutation-results.txt
-          python scripts/update_mutation_badge.py --skip-run
+          uv run mutmut results > mutation-results.txt
+          uv run python scripts/update_mutation_badge.py --skip-run
 
       - name: Publish survivability summary
         run: |
