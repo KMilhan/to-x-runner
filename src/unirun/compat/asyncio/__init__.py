@@ -14,6 +14,7 @@ __all__ = [
     "CancelledError",
     "Future",
     "Task",
+    "TaskGroup",
     "gather",
     "get_event_loop",
     "get_running_loop",
@@ -27,6 +28,7 @@ __all__ = [
 CancelledError = _asyncio.CancelledError
 Future = _asyncio.Future
 Task = _asyncio.Task
+TaskGroup = getattr(_asyncio, "TaskGroup", None)
 gather = _asyncio.gather
 get_event_loop = _asyncio.get_event_loop
 get_running_loop = _asyncio.get_running_loop

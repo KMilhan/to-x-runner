@@ -79,6 +79,10 @@ with ThreadPoolExecutor() as pool:
 Set `UNIRUN_COMPAT_MODE=passthrough` to temporarily route those imports back to
 the stdlib when testing or comparing behaviours.
 
+Compat re-exports like `asyncio.gather` and `asyncio.TaskGroup` delegate to the
+stdlib implementations, so subtle reference semantics (e.g., gather’s weakrefs
+vs TaskGroup’s strong refs) remain unchanged.
+
 The optional helpers still hand back stdlib objects—`thread_executor()` yields a
 `ThreadPoolExecutor`, `to_thread` awaits the same values you would get from
 `asyncio.to_thread`, and `run` simply orchestrates `submit`/`result()` on your

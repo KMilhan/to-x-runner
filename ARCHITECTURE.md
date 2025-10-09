@@ -123,6 +123,9 @@ async def refresh_cache(keys: list[str]) -> None:
   `unirun.compat.asyncio`, exposing stdlib-shaped APIs that delegate to the
   shared scheduler unless `UNIRUN_COMPAT_MODE=passthrough` reverts to the
   original implementations.
+- Async helpers intentionally reuse stdlib implementations for constructs like
+  `gather` (weakref semantics) and `TaskGroup` (strong references) so projects
+  with subtle lifecycle expectations behave identically under compat.
 
 ## Observability Hooks
 - `Run(..., trace=...)` accepts booleans, `DecisionTrace` sinks, or callbacks so
