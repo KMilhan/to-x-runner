@@ -16,6 +16,7 @@ Core logic lives in `src/unirun/`: `runtime.py` manages executor selection, `cap
 - `uv sync --extra benchmark`: install editable dependencies plus the benchmark extra.
 - `make lint-check`: run `ruff` and `ty` via uv to enforce lint/type gates (mirrors the pre-commit hook).
 - `uv run pytest`: execute the full regression suite (pytest auto-discovers unittest cases too).
+- `uv run scripts/update_compat_parity.py`: regenerate the compat API baseline when stdlib exports change.
 - `uv run python -m unirun_bench --profile all --samples 5 --json`: optional benchmark sweep for manual verification.
 
 ## Coding Style & Naming Conventions
