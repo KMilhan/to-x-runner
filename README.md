@@ -83,6 +83,12 @@ Compat re-exports like `asyncio.gather` and `asyncio.TaskGroup` delegate to the
 stdlib implementations, so subtle reference semantics (e.g., gather’s weakrefs
 vs TaskGroup’s strong refs) remain unchanged.
 
+Compat coverage: automated parity snapshots (`scripts/update_compat_parity.py`
+and `tests/test_compat_parity.py`) keep exports aligned with CPython; the
+`contract-versions` make target (and CI workflow) runs CPython’s
+`test_concurrent_futures`/`test_asyncio` suites across Python 3.11–3.14 in both
+managed and passthrough modes so regressions surface immediately.
+
 The optional helpers still hand back stdlib objects—`thread_executor()` yields a
 `ThreadPoolExecutor`, `to_thread` awaits the same values you would get from
 `asyncio.to_thread`, and `run` simply orchestrates `submit`/`result()` on your
