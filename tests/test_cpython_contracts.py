@@ -11,6 +11,7 @@ from typing import Iterable
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TESTS_ROOT = Path(__file__).resolve().parent
 LIB_TEST_DIR = Path(sysconfig.get_path("stdlib")) / "test"
 
 # Target contract suites we can exercise.
@@ -31,7 +32,7 @@ def _ensure_contract_modules_available() -> bool:
 
 def _build_env(mode: str, *, extra_paths: Iterable[str] = ()) -> dict[str, str]:
     env = os.environ.copy()
-    pythonpath = [str(REPO_ROOT), str(LIB_TEST_DIR)]
+    pythonpath = [str(REPO_ROOT), str(TESTS_ROOT), str(LIB_TEST_DIR)]
     pythonpath.extend(extra_paths)
     env["PYTHONPATH"] = os.pathsep.join(pythonpath)
     env.pop("PYTHONWARNDEFAULTENCODING", None)
@@ -46,12 +47,9 @@ def _build_env(mode: str, *, extra_paths: Iterable[str] = ()) -> dict[str, str]:
 def test_cpython_contract_suite(contract_module: str, compat_mode: str) -> None:
     """Run CPython's contract suites using compat imports."""
 
-    if compat_mode == "managed":
-        pytest.skip("Managed compat CPython suites pending")
-
-    module_name = contract_module.split(".")[-1]
-    cmd = [sys.executable, "-m", "unittest", contract_module]
     env = _build_env(compat_mode)
+    env["UNIRUN_COMPAT_SITE"] = compat_mode
+    cmd = [sys.executable, "-m", "test", "-q", contract_module.split(".")[-1]]
     result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if result.returncode != 0:
         pytest.fail(
