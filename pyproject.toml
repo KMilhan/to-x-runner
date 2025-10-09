@@ -43,6 +43,7 @@ target-version = "py314"
 preview = true
 exclude = [
     ".mutants_backup",
+    "tests/.cpython-tests",
 ]
 
 [tool.ruff.lint]

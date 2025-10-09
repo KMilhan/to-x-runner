@@ -1,6 +1,6 @@
 lint-check:
 	uv run ruff check .
-	uv run ty check .
+	uv run ty check . --exclude tests/.cpython-tests
 
 lint-fix:
 	uv run ruff check . --fix --unsafe-fixes
