@@ -119,6 +119,10 @@ async def refresh_cache(keys: list[str]) -> None:
 - Documentation and recipes highlight one-to-one mappings (`ThreadPoolExecutor`,
   `as_completed`, `asyncio.to_thread`) so compat is understood as a swap-in, not
   a new abstraction.
+- Compat modules live under `unirun.compat.concurrent.futures` and
+  `unirun.compat.asyncio`, exposing stdlib-shaped APIs that delegate to the
+  shared scheduler unless `UNIRUN_COMPAT_MODE=passthrough` reverts to the
+  original implementations.
 
 ## Observability Hooks
 - `Run(..., trace=...)` accepts booleans, `DecisionTrace` sinks, or callbacks so

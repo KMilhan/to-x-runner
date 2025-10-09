@@ -63,6 +63,22 @@ capability detection—the underlying objects and futures stay the same.
 | Manual executor switching (`if cpu: ...`) | `Run(flavor="auto")`                    | One scope; capabilities pick the backend |
 | Sub-interpreter experimentation          | `interpreter_executor()`                 | Standard `Executor` surface with fallback |
 
+### Drop-in compat imports
+
+Need to migrate incrementally? Swap stdlib imports for the compat mirrors and
+let unirun manage the executors:
+
+```python
+from unirun.compat.concurrent.futures import ThreadPoolExecutor
+
+with ThreadPoolExecutor() as pool:
+    future = pool.submit(pow, 2, 21)
+    print(future.result())
+```
+
+Set `UNIRUN_COMPAT_MODE=passthrough` to temporarily route those imports back to
+the stdlib when testing or comparing behaviours.
+
 The optional helpers still hand back stdlib objects—`thread_executor()` yields a
 `ThreadPoolExecutor`, `to_thread` awaits the same values you would get from
 `asyncio.to_thread`, and `run` simply orchestrates `submit`/`result()` on your
