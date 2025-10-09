@@ -8,7 +8,7 @@ lint-fix:
 test:
 	uv run pytest
 
-COMPAT_PYTHONS ?= 3.11 3.12 3.13
+COMPAT_PYTHONS ?= 3.11 3.12 3.13 3.14
 
 test-compat:
 	@for py in $(COMPAT_PYTHONS); do \
