@@ -16,6 +16,12 @@ test-compat:
 		uv run --python $$py pytest || exit $$?; \
 	done
 
+contract-versions:
+	@for py in $(COMPAT_PYTHONS); do \
+		echo "==> contracts under $$py"; \
+		uv run --python $$py pytest tests/test_cpython_contracts.py || exit $$?; \
+	done
+
 mutation:
 	uv run mutmut run
 
