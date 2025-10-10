@@ -6,11 +6,31 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from typing import Any, TypedDict, cast
 
 MODULES = {
     "concurrent.futures": "unirun.compat.concurrent.futures",
     "asyncio": "unirun.compat.asyncio",
 }
+
+REQUIRED_PARITY_KEYS = (
+    "stdlib",
+    "compat",
+    "missing_in_compat",
+    "extra_in_compat",
+)
+
+
+class ModuleParity(TypedDict):
+    """Parity snapshot for a stdlib module version."""
+
+    stdlib: list[str]
+    compat: list[str]
+    missing_in_compat: list[str]
+    extra_in_compat: list[str]
+
+
+Baseline = dict[str, dict[str, ModuleParity]]
 
 
 def public_exports(module):
@@ -18,6 +38,45 @@ def public_exports(module):
     if names is None:
         names = [name for name in dir(module) if not name.startswith("_")]
     return sorted(set(names))
+
+
+def _coerce_versions(entry: Any, *, version_key: str) -> dict[str, ModuleParity]:
+    """Normalise legacy or untyped baseline payloads."""
+
+    if not isinstance(entry, dict):
+        return {}
+
+    # Handle legacy payloads keyed directly by parity metrics.
+    if all(key in entry for key in REQUIRED_PARITY_KEYS):
+        return {version_key: cast(ModuleParity, entry)}
+
+    versioned: dict[str, ModuleParity] = {}
+    for version, payload in entry.items():
+        if not isinstance(version, str) or not isinstance(payload, dict):
+            continue
+        if all(key in payload for key in REQUIRED_PARITY_KEYS):
+            versioned[version] = cast(ModuleParity, payload)
+    return versioned
+
+
+def _load_baseline(path: Path, *, version_key: str) -> Baseline:
+    """Load and coerce an existing baseline file if present."""
+
+    if not path.exists():
+        return {}
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return {}
+
+    baseline: Baseline = {}
+    for stdlib_name, entry in raw.items():
+        if not isinstance(stdlib_name, str):
+            continue
+        versions = _coerce_versions(entry, version_key=version_key)
+        if versions:
+            baseline[stdlib_name] = versions
+    return baseline
 
 
 def main() -> int:
@@ -30,15 +89,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     version_key = f"{sys.version_info.major}.{sys.version_info.minor}"
-    baseline: dict[str, dict[str, dict[str, list[str]]]] = {}
-    if args.output.exists():
-        baseline = json.loads(args.output.read_text(encoding="utf-8"))
-
-    for stdlib_name in MODULES:
-        existing = baseline.get(stdlib_name, {})
-        if existing and "stdlib" in existing:
-            existing = {version_key: existing}
-        baseline[stdlib_name] = existing
+    baseline = _load_baseline(args.output, version_key=version_key)
 
     for stdlib_name, compat_name in MODULES.items():
         stdlib_mod = importlib.import_module(stdlib_name)

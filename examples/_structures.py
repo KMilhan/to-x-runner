@@ -44,7 +44,7 @@ class ExampleScenario(Generic[T_co]):  # noqa: UP046
     details: str
     entrypoint: Callable[..., T_co]
     args: tuple[Any, ...] = ()
-    kwargs: Mapping[str, Any] = field(default_factory=dict)
+    kwargs: Mapping[str, Any] = field(default_factory=dict[str, Any])
     tags: tuple[str, ...] = ()
 
     def execute(self) -> ExampleResult[T_co]:
