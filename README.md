@@ -86,8 +86,9 @@ vs TaskGroup’s strong refs) remain unchanged.
 Compat coverage: automated parity snapshots (`scripts/update_compat_parity.py`
 and `tests/test_compat_parity.py`) keep exports aligned with CPython; the
 `contract-versions` make target (and CI workflow) runs CPython’s
-`test_concurrent_futures`/`test_asyncio` suites across Python 3.11–3.14 in both
-managed and passthrough modes so regressions surface immediately.
+`test_concurrent_futures`/`test_asyncio` suites across Python 3.11–3.14.
+Managed compat currently xfails while the remaining upstream tests are
+stabilized (tracked in issue #22); passthrough runs must stay green.
 
 The optional helpers still hand back stdlib objects—`thread_executor()` yields a
 `ThreadPoolExecutor`, `to_thread` awaits the same values you would get from
@@ -245,6 +246,16 @@ async def hydrate_cache(keys):
 
 The base library keeps runtime dependencies at zero. For manual benchmarking,
 invoke the optional CLI module without affecting core installs:
+
+## Testing
+
+- `make lint-check`: run Ruff and Ty across the repo (downloaded CPython sources
+  under `tests/.cpython-tests/` are excluded).
+- `pytest`: execute the project's unit/integration suites.
+- `make contract-versions`: run CPython’s `test_asyncio` /
+  `test_concurrent_futures` suites across Python 3.11–3.14 with the compat layer
+  injected via `sitecustomize` (managed runs currently xfail while
+  `test_shutdown`/`test_asyncio.test_ssl` are stabilized).
 
 ## Real-World Usage Catalog
 
