@@ -22,8 +22,8 @@ jobs:
       - name: Install project
         run: uv sync --extra benchmark --python ${{ matrix.python }}
       - name: Run stdlib compat parity
-        run: uv run pytest tests/test_compat_parity.py
+        run: uv run --python ${{ matrix.python }} pytest tests/test_compat_parity.py
       - name: Run CPython contract suites
         env:
           PYTHONWARNINGS: "ignore::DeprecationWarning"
-        run: uv run pytest tests/test_cpython_contracts.py
+        run: uv run --python ${{ matrix.python }} pytest tests/test_cpython_contracts.py
