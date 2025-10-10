@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ BASELINE_PATH = Path(__file__).parent / "data" / "compat_parity.json"
 
 with BASELINE_PATH.open(encoding="utf-8") as fh:
     BASELINE = json.load(fh)
+
+PY_VERSION_KEY = f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
 def _public_exports(module):
@@ -27,7 +30,13 @@ def _public_exports(module):
     ],
 )
 def test_compat_parity(stdlib_name: str, compat_name: str) -> None:
-    baseline = BASELINE[stdlib_name]
+    baseline_versions = BASELINE[stdlib_name]
+    if PY_VERSION_KEY not in baseline_versions:
+        raise AssertionError(
+            f"No baseline recorded for Python {PY_VERSION_KEY}; "
+            "run scripts/update_compat_parity.py"
+        )
+    baseline = baseline_versions[PY_VERSION_KEY]
     stdlib_module = importlib.import_module(stdlib_name)
     compat_module = importlib.import_module(compat_name)
 

@@ -41,3 +41,24 @@ Organize the suite so that each test module covers exactly one concurrency or pa
 - The `githooks/pre-commit` script shells out to `make lint-check`, ensuring `uv run ruff check .` and `uv run ty check .` succeed before commits land.
 ## Benchmark & Performance Notes
 `unirun_bench` is optional but ideal for stress-testing new heuristics. Run the command above after altering executor defaults and share key JSON metrics in PR discussions. Avoid adding runtime dependencies; if a benchmark needs extras, guard imports so the core package stays dependency-free.
+
+## Milestones & Labels Policy
+- Milestones track roadmap phases defined in `docs/milestones.md`; during the first
+  phase, map qualifying issues to **Executor Surface Alignment**. Advance through
+  the remaining phases in order (Scheduler Enhancements → Compat Layer Delivery →
+  Instrumentation & Observability → Verification Upgrades → Release Readiness) so
+  burndown charts match the published timeline.
+- Only attach a milestone when the issue directly contributes to that phase’s
+  acceptance criteria. Cross-cutting chores stay unmilestoned unless they unblock
+  the active phase.
+- Labels follow a `group:value` format so queries stay predictable:
+  - `area:*` — surfaced module or subsystem (`area:scheduler`, `area:compat`,
+    `area:docs`).
+  - `type:*` — work category (`type:bug`, `type:feature`, `type:docs`,
+    `type:infra`).
+  - `status:*` — workflow hints (`status:needs-triage`, `status:blocker`,
+    `status:ready`).
+  - `priority:p{1-3}` — urgency indicator aligned with roadmap risk.
+- Every newly created issue should get one `area:*` and one `type:*` label during
+  triage; add `status:*` and `priority:*` as soon as ownership is clear. Update
+  labels whenever scope shifts so dashboards stay trustworthy.
