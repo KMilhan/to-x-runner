@@ -18,6 +18,7 @@ Core logic lives in `src/unirun/`: `runtime.py` manages executor selection, `cap
 - `uv run pytest`: execute the full regression suite (pytest auto-discovers unittest cases too).
 - `uv run scripts/update_compat_parity.py`: regenerate the compat API baseline when stdlib exports change.
 - `uv run python -m unirun_bench --profile all --samples 5 --json`: optional benchmark sweep for manual verification.
+- `make contract-versions`: run the CPython `test_asyncio`/`test_concurrent_futures` suites against the compat layer for Python 3.11–3.14 (downloads sources if needed).
 
 ## Coding Style & Naming Conventions
 Follow PEP 8 defaults: 4-space indentation, soft wrap near 100 characters, module-level constants in UPPER_SNAKE_CASE. Public APIs must expose explicit type hints (Literal unions, Protocols) that reuse standard-library names. Keep docstrings concise and situational, prefer `snake_case` for functions, and reserve `PascalCase` for dataclasses or capability records. When extending executors, keep thread names aligned with the `unirun-*` prefix so logs remain searchable. Anchor surface names and docstrings in standard-library vocabulary (`Executor`, `Future`, `to_thread`); call out when behavior is a drop-in replacement with optional enhancements.

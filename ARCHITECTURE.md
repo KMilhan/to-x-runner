@@ -180,6 +180,10 @@ async def refresh_cache(keys: list[str]) -> None:
 - Mirror CPython reference suites by running the compat layer against upstream
   `test.concurrent_futures`, `test.asyncio`, and related modules to lock in
   contract-level parity.
+- `tests/test_cpython_contracts.py` orchestrates those suites via a compat-aware
+  `sitecustomize`; the current harness downloads missing sources on demand and
+  xfails the managed runs until `test_shutdown` / `test_asyncio.test_ssl` issues
+  are resolved.
 - Stress test lifecycle edges through mutation and long-running workloads so
   branch coverage and double execution are backed by resilience checks (e.g.,
   shutdown mid-flight, interpreter feature flips).
