@@ -30,14 +30,14 @@ Prefer pytest with function-only tests (`test_<feature>`) under `tests/`. Use fi
 Organize the suite so that each test module covers exactly one concurrency or parallelism feature. Companion parity checks with the CPython stdlib belong in files that share the feature name and end with `_double.py` (for example, `test_thread_executor.py` and `test_thread_executor_double.py`).
 
 ## Commit & Pull Request Guidelines
+- Keep commits atomic: each commit should capture a cohesive, reviewable change. Break larger features into logical commits (code, tests, docs, tooling) rather than batching unrelated edits. This matches the workflow request in this session.
+
 - Pull request titles can be as descriptive as needed; no enforced character limit.
 - Commit subjects must begin with a gitmoji shortcode (e.g., `:sparkles:`) and may not use raw Unicode emojis or shorthand such as `:feat`. Follow the gitmoji with a single space and an imperative summary (e.g., `:sparkles: add interpreter executor docs`).
 - Reference related issues in the body, including reproduction or benchmark notes when concurrency paths change.
 - Pull requests should summarize user-facing impact, list test commands executed (include `pytest` runs), and attach before/after numbers for performance tweaks. Add screenshots or JSON excerpts only when the CLI output changes to preserve review context.
-
 ## Git Hooks
 - Run `git config core.hooksPath githooks` once so the repository-managed hooks take effect.
 - The `githooks/pre-commit` script shells out to `make lint-check`, ensuring `uv run ruff check .` and `uv run ty check .` succeed before commits land.
-
 ## Benchmark & Performance Notes
 `unirun_bench` is optional but ideal for stress-testing new heuristics. Run the command above after altering executor defaults and share key JSON metrics in PR discussions. Avoid adding runtime dependencies; if a benchmark needs extras, guard imports so the core package stays dependency-free.
