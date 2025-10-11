@@ -34,12 +34,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          allow-prereleases: true
 
-      - name: Install CPython 3.14 preview
+      - name: Install CPython 3.14
         run: |
-          uv python install 3.14-dev
-          uv venv --python 3.14-dev
+          uv python install 3.14
+          uv venv --python 3.14
 
       - name: Configure git identity
         run: |
@@ -47,10 +46,10 @@ jobs:
           git config user.email "release@girokmoji"
 
       - name: Install project dependencies
-        run: uv pip install --python 3.14-dev .[benchmark]
+        run: uv pip install --python 3.14 .[benchmark]
 
       - name: Run test suite
-        run: uv run --python 3.14-dev pytest
+        run: uv run --python 3.14 pytest
 
       - name: Generate release notes with girokmoji
         id: girokmoji
