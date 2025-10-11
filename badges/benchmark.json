@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "label": "benchmark speedup",
-  "message": "2.33x",
-  "color": "brightgreen",
+  "message": "1.00x",
+  "color": "yellow",
   "namedLogo": "speedtest"
 }
