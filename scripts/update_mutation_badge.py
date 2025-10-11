@@ -182,12 +182,13 @@ def main() -> None:
     output = _run_mutmut_results(args.mutmut_bin)
     survived, killed, timeout, suspicious, incompetent = _parse_results(output)
     total = survived + killed + timeout + suspicious + incompetent
-    if total == 0:
+    tested_total = total - incompetent
+    if tested_total <= 0:
         message = "n/a"
         color = "lightgrey"
     else:
-        survivors = survived + timeout + suspicious + incompetent
-        rate = survivors / total
+        survivors = survived + timeout + suspicious
+        rate = survivors / tested_total
         message = f"{rate * 100:.1f}%"
         color = _determine_color(rate)
     _write_badge(args.output, message, color)
