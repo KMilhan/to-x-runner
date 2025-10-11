@@ -31,6 +31,7 @@ Organize the suite so that each test module covers exactly one concurrency or pa
 
 ## Commit & Pull Request Guidelines
 - Keep commits atomic: each commit should capture a cohesive, reviewable change. Break larger features into logical commits (code, tests, docs, tooling) rather than batching unrelated edits. This matches the workflow request in this session.
+- When a commit resolves a GitHub issue, mention the issue number in the commit message body (for example, `closes #171`).
 
 - Pull request titles can be as descriptive as needed; no enforced character limit.
 - Commit subjects must begin with a gitmoji shortcode (e.g., `:sparkles:`) and may not use raw Unicode emojis or shorthand such as `:feat`. Follow the gitmoji with a single space and an imperative summary (e.g., `:sparkles: add interpreter executor docs`).
