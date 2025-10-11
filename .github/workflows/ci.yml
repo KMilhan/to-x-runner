@@ -82,6 +82,8 @@ jobs:
   benchmark:
     name: Benchmark (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -99,4 +101,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[benchmark]
       - name: Run benchmark suite
-        run: python -m unirun_bench --profile all --samples 1 --duration 0.05 --limit 50000 --json
+        run: python -m unirun_bench --profile all --samples 1 --duration 0.05 --limit 50000 --json > benchmark.json
+      - name: Generate benchmark badge
+        run: python scripts/update_benchmark_badge.py --input benchmark.json --output badges/benchmark.json
+      - name: Publish benchmark badge to artifacts branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin badge-artifacts
+          git worktree add ../badge-artifacts badge-artifacts
+          mkdir -p ../badge-artifacts/badges
+          cp badges/benchmark.json ../badge-artifacts/badges/benchmark.json
+          cd ../badge-artifacts
+          git add badges/benchmark.json
+          if git diff --cached --quiet; then
+            echo "Benchmark badge already up to date"
+          else
+            git commit -m ":stopwatch: update benchmark badge"
+            git push origin badge-artifacts
+          fi
+          cd -
+          git worktree remove ../badge-artifacts
