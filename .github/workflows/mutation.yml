@@ -33,7 +33,7 @@ jobs:
       - name: Collect mutmut results
         run: |
           uv run --python 3.14 mutmut results > mutation-results.txt
-          python scripts/update_mutation_badge.py --skip-run
+          uv run --python 3.14 python scripts/update_mutation_badge.py --skip-run --mutmut-bin mutmut
 
       - name: Publish survivability summary
         run: |
