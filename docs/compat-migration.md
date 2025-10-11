@@ -102,6 +102,41 @@ with Run(flavor="threads") as executor:
 - When ready, follow the `Run` adoption guidance to move from compat parity to
   fully managed execution scopes with trace hooks.
 
+## Appendix: Asyncio adoption checklist
+
+`unirun.compat.asyncio` mirrors the stdlib module and intentionally keeps the
+`asyncio.run`, `gather`, `run_in_executor`, and `to_thread` signatures identical.
+When migrating asynchronous services:
+
+- Swap imports and continue using familiar functions:
+
+  ```diff
+  -import asyncio
+  +from unirun.compat import asyncio
+  ```
+
+- Calls to `asyncio.run_in_executor(None, ...)` automatically route through
+  managed scheduling. If you already manage executors explicitly, continue
+  passing them as before—the compat layer forwards the instance unchanged.
+- Use the same downgrade warnings described above to detect when compat hands
+  control back to stdlib executors (for example if a loop policy enforces the
+  stdlib thread pool).
+- Combine with `Run` to manage executor lifetimes around async entry points:
+
+  ```python
+  from unirun import Run
+  from unirun.compat import asyncio
+
+  async def refresh_all_accounts(accounts: list[int]) -> None:
+      with Run(flavor="threads") as executor:
+          await asyncio.gather(
+              *[asyncio.to_thread(sync_refresh, account, executor=executor) for account in accounts]
+          )
+  ```
+
+This keeps the migration readable and ready for teams that want to move deeper
+into managed execution while remaining inside familiar `asyncio` vocabulary.
+
 ---
 
 If you encounter a downgrade warning that needs additional context, file an
