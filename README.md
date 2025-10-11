@@ -1,6 +1,10 @@
 # unirun
 
-![Mutation survivability](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/main/badges/mutation-survivability.json)
+![Mutation survivability](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/badge-artifacts/badges/mutation-survivability.json)
+![Coverage (lines)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/badge-artifacts/badges/coverage-lines.json)
+![Coverage (branches)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/badge-artifacts/badges/coverage-branches.json)
+![Compat contracts](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/badge-artifacts/badges/compat-contracts.json)
+![Benchmark speedup](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/KMilhan/unirun/badge-artifacts/badges/benchmark.json)
 
 `unirun` gives Python developers a standard-library-fluent interface for running
 "everything-to-everything" workloads across CPython's evolving execution

@@ -41,22 +41,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          repo="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          tmpdir=$(mktemp -d)
+          git clone --depth 1 --single-branch --branch badge-artifacts "$repo" "$tmpdir"
+          mkdir -p "$tmpdir/badges"
+          cp badges/mutation-survivability.json "$tmpdir/badges/mutation-survivability.json"
+          cd "$tmpdir"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badge-artifacts
-          git worktree add ../badge-artifacts badge-artifacts
-          mkdir -p ../badge-artifacts/badges
-          cp badges/mutation-survivability.json ../badge-artifacts/badges/mutation-survivability.json
-          cd ../badge-artifacts
           git add badges/mutation-survivability.json
           if git diff --cached --quiet; then
             echo "Badge already up to date"
           else
             git commit -m ":bar_chart: update mutation survivability badge"
-            git push origin badge-artifacts
+            git push --force-with-lease origin HEAD:badge-artifacts
           fi
           cd -
-          git worktree remove ../badge-artifacts
+          rm -rf "$tmpdir"
 
       - name: Publish survivability summary
         run: |

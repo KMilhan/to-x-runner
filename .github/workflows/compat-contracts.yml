@@ -41,19 +41,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          repo="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          tmpdir=$(mktemp -d)
+          git clone --depth 1 --single-branch --branch badge-artifacts "$repo" "$tmpdir"
+          mkdir -p "$tmpdir/badges"
+          cp badges/compat-contracts.json "$tmpdir/badges/compat-contracts.json"
+          cd "$tmpdir"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badge-artifacts
-          git worktree add ../badge-artifacts badge-artifacts
-          mkdir -p ../badge-artifacts/badges
-          cp badges/compat-contracts.json ../badge-artifacts/badges/compat-contracts.json
-          cd ../badge-artifacts
           git add badges/compat-contracts.json
           if git diff --cached --quiet; then
             echo "Compat badge already up to date"
           else
             git commit -m ":shield: update compat contracts badge"
-            git push origin badge-artifacts
+            git push --force-with-lease origin HEAD:badge-artifacts
           fi
           cd -
-          git worktree remove ../badge-artifacts
+          rm -rf "$tmpdir"

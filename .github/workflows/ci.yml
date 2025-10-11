@@ -61,23 +61,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          repo="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          tmpdir=$(mktemp -d)
+          git clone --depth 1 --single-branch --branch badge-artifacts "$repo" "$tmpdir"
+          mkdir -p "$tmpdir/badges"
+          cp badges/coverage-lines.json "$tmpdir/badges/coverage-lines.json"
+          cp badges/coverage-branches.json "$tmpdir/badges/coverage-branches.json"
+          cd "$tmpdir"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badge-artifacts
-          git worktree add ../badge-artifacts badge-artifacts
-          mkdir -p ../badge-artifacts/badges
-          cp badges/coverage-lines.json ../badge-artifacts/badges/coverage-lines.json
-          cp badges/coverage-branches.json ../badge-artifacts/badges/coverage-branches.json
-          cd ../badge-artifacts
           git add badges/coverage-lines.json badges/coverage-branches.json
           if git diff --cached --quiet; then
             echo "Coverage badges already up to date"
           else
             git commit -m ":test_tube: update coverage badges"
-            git push origin badge-artifacts
+            git push --force-with-lease origin HEAD:badge-artifacts
           fi
           cd -
-          git worktree remove ../badge-artifacts
+          rm -rf "$tmpdir"
 
   benchmark:
     name: Benchmark (py${{ matrix.python-version }})
@@ -109,19 +110,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          repo="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}"
+          tmpdir=$(mktemp -d)
+          git clone --depth 1 --single-branch --branch badge-artifacts "$repo" "$tmpdir"
+          mkdir -p "$tmpdir/badges"
+          cp badges/benchmark.json "$tmpdir/badges/benchmark.json"
+          cd "$tmpdir"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badge-artifacts
-          git worktree add ../badge-artifacts badge-artifacts
-          mkdir -p ../badge-artifacts/badges
-          cp badges/benchmark.json ../badge-artifacts/badges/benchmark.json
-          cd ../badge-artifacts
           git add badges/benchmark.json
           if git diff --cached --quiet; then
             echo "Benchmark badge already up to date"
           else
             git commit -m ":stopwatch: update benchmark badge"
-            git push origin badge-artifacts
+            git push --force-with-lease origin HEAD:badge-artifacts
           fi
           cd -
-          git worktree remove ../badge-artifacts
+          rm -rf "$tmpdir"
