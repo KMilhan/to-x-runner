@@ -14,16 +14,56 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-def load_group(group: str) -> list[str]:
+def load_project() -> dict[str, object]:
     project = Path("pyproject.toml")
-    data = tomllib.loads(project.read_text(encoding="utf-8"))
+    return tomllib.loads(project.read_text(encoding="utf-8"))
+
+
+def normalize_dependency(
+    name: str,
+    sources: dict[str, dict[str, object]] | None,
+) -> str:
+    source_entry: dict[str, object] | None = None
+    if sources:
+        raw = sources.get(name)
+        if isinstance(raw, dict):
+            source_entry = raw
+
+    if not source_entry:
+        return name
+
+    git_url = source_entry.get("git")
+    if git_url:
+        rev = source_entry.get("rev")
+        if not isinstance(rev, str) or not rev:
+            raise SystemExit(f"Git source for '{name}' requires a non-empty rev.")
+        return f"git+{git_url}@{rev}#egg={name}"
+
+    path = source_entry.get("path")
+    if path:
+        return str(path)
+
+    raise SystemExit(f"Unsupported source override for dependency '{name}'.")
+
+
+def load_group(group: str) -> list[str]:
+    data = load_project()
     groups = data.get("dependency-groups") or {}
-    if group not in groups:
+    if not isinstance(groups, dict):
+        raise SystemExit("Invalid dependency-groups structure in pyproject.toml.")
+    raw_deps = groups.get(group)
+    if raw_deps is None:
         raise SystemExit(f"Dependency group '{group}' not found in pyproject.toml.")
-    deps = groups[group]
-    if not isinstance(deps, list):
+    if not isinstance(raw_deps, list):
         raise SystemExit(f"Dependency group '{group}' must be a list of requirements.")
-    return [str(item) for item in deps]
+    sources = data.get("tool", {}).get("uv", {}).get("sources", {})  # type: ignore[call-arg]
+    if not isinstance(sources, dict):
+        sources = {}
+    normalized = [
+        normalize_dependency(str(dep), sources)  # type: ignore[arg-type]
+        for dep in raw_deps
+    ]
+    return normalized
 
 
 def install_group(group: str, python_version: str) -> None:
