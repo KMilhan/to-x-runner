@@ -23,8 +23,8 @@ jobs:
         run: python scripts/ensure_uv_lock_version.py --check
       - name: Install project
         run: uv sync --extra benchmark --python ${{ matrix.python }}
-      - name: Install dev dependency group
-        run: uv pip install --group dev --python ${{ matrix.python }}
+      - name: Install test dependencies
+        run: uv pip install pytest pytest-asyncio hypothesis --python ${{ matrix.python }}
       - name: Run stdlib compat parity
         run: uv run --python ${{ matrix.python }} pytest tests/test_compat_parity.py
       - name: Run CPython contract suites
