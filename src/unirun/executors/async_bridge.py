@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from concurrent.futures import Executor, Future
+import contextvars
 from functools import partial
 from typing import Any, ParamSpec, TypeVar
 
@@ -19,7 +20,8 @@ async def to_thread(func: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) 
 
     loop = asyncio.get_running_loop()
     executor = get_thread_pool()
-    caller = partial(func, *args, **kwargs)
+    ctx = contextvars.copy_context()
+    caller = partial(ctx.run, func, *args, **kwargs)
     return await loop.run_in_executor(executor, caller)
 
 

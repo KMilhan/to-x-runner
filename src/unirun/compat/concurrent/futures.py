@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import itertools
+import sys
 from collections.abc import Callable, Iterable
 from concurrent.futures import (  # noqa: F401 (re-exported names)
     ALL_COMPLETED,
     FIRST_COMPLETED,
     FIRST_EXCEPTION,
+    BrokenExecutor,
     CancelledError,
     Executor,
     Future,
+    InvalidStateError,
     TimeoutError,
     as_completed,
     wait,
 )
 from concurrent.futures import ProcessPoolExecutor as StdProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor as StdThreadPoolExecutor
+import concurrent.futures.process as _stdlib_process
 from typing import Any, TypeVar
 
 from ... import scheduler
@@ -28,15 +33,21 @@ __all__ = [
     "ALL_COMPLETED",
     "FIRST_COMPLETED",
     "FIRST_EXCEPTION",
+    "BrokenExecutor",
     "CancelledError",
     "Executor",
     "Future",
+    "InvalidStateError",
     "TimeoutError",
     "ThreadPoolExecutor",
     "ProcessPoolExecutor",
     "wait",
     "as_completed",
 ]
+
+process = _stdlib_process
+sys.modules.setdefault("concurrent.futures.process", process)
+_THREAD_EXECUTOR_COUNTER = itertools.count()
 
 
 def _passthrough() -> bool:
@@ -56,6 +67,7 @@ else:
             self._executor: Executor | None = None
             self._owns_executor = False
             self.decision: scheduler.DecisionTrace | None = None
+            self._proxy_attrs: dict[str, Any] = {}
 
         def submit(
             self,
@@ -91,6 +103,9 @@ else:
                 self._executor.shutdown(wait=wait, cancel_futures=cancel_futures)
             elif hasattr(self._executor, "shutdown"):
                 self._executor.shutdown(wait=wait, cancel_futures=cancel_futures)
+            for name in ("_threads", "_processes"):
+                if hasattr(self._executor, name):
+                    self._proxy_attrs[name] = getattr(self._executor, name)
             self._executor = None
             self._lease = None
 
@@ -105,6 +120,15 @@ else:
             self._executor = lease.executor
             self._owns_executor = lease.owns_executor
             self.decision = lease.trace
+            self._proxy_attrs.clear()
+
+        def __getattr__(self, name: str) -> Any:
+            executor = self._executor
+            if executor is None:
+                if name in self._proxy_attrs:
+                    return self._proxy_attrs[name]
+                raise AttributeError(name)
+            return getattr(executor, name)
 
     class ThreadPoolExecutor(_BaseCompatExecutor):
         """Managed thread pool compat wrapper."""
@@ -117,23 +141,25 @@ else:
             initargs: tuple[Any, ...] = (),
         ) -> None:
             super().__init__()
+            prefix = thread_name_prefix or f"ThreadPoolExecutor-{next(_THREAD_EXECUTOR_COUNTER)}"
             if initializer is not None or initargs:
                 # Defer to the stdlib implementation when initializer
                 # behavior is required.
                 self._executor = StdThreadPoolExecutor(
                     max_workers=max_workers,
-                    thread_name_prefix=thread_name_prefix,
+                    thread_name_prefix=prefix,
                     initializer=initializer,
                     initargs=initargs,
                 )
                 self._owns_executor = True
                 self.decision = None
+                self._proxy_attrs.clear()
                 return
 
             lease = scheduler.lease_executor(
                 mode="threads",
                 max_workers=max_workers,
-                name=thread_name_prefix or _core.default_thread_name(),
+                name=prefix,
             )
             self._attach_lease(lease)
 
@@ -146,14 +172,22 @@ else:
             mp_context: Any | None = None,
             initializer: Callable[..., object] | None = None,
             initargs: tuple[Any, ...] = (),
+            *,
+            max_tasks_per_child: int | None = None,
         ) -> None:
             super().__init__()
-            if mp_context is not None or initializer is not None or initargs:
+            if (
+                mp_context is not None
+                or initializer is not None
+                or initargs
+                or max_tasks_per_child is not None
+            ):
                 self._executor = StdProcessPoolExecutor(
                     max_workers=max_workers,
                     mp_context=mp_context,
                     initializer=initializer,
                     initargs=initargs,
+                    max_tasks_per_child=max_tasks_per_child,
                 )
                 self._owns_executor = True
                 self.decision = None

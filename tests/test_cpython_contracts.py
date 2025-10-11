@@ -95,7 +95,9 @@ def _build_env(mode: str, *, extra_paths: Iterable[str] = ()) -> dict[str, str]:
     lib_test_dir = _stdlib_test_dir()
     pythonpath = [str(REPO_ROOT), str(TESTS_ROOT)]
     if lib_test_dir is not None:
-        pythonpath.append(str(lib_test_dir))
+        path = str(lib_test_dir)
+        pythonpath.append(path)
+        env["UNIRUN_COMPAT_TESTPATH"] = path
     pythonpath.extend(extra_paths)
     env["PYTHONPATH"] = os.pathsep.join(pythonpath)
     env.pop("PYTHONWARNDEFAULTENCODING", None)
@@ -112,8 +114,6 @@ def _build_env(mode: str, *, extra_paths: Iterable[str] = ()) -> dict[str, str]:
 @pytest.mark.parametrize("compat_mode", ["managed", "passthrough"])
 def test_cpython_contract_suite(contract_module: str, compat_mode: str) -> None:
     """Run CPython's contract suites using compat imports."""
-
-    pytest.xfail("Compat-managed contract suites pending stabilization")
 
     env = _build_env(compat_mode)
     env["UNIRUN_COMPAT_SITE"] = compat_mode

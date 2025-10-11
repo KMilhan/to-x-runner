@@ -1,4 +1,4 @@
-"""Sitecustomize shim to redirect stdlib modules to unirun compat mirrors."""
+"""Sitecustomize hook installing unirun's compat overlays when requested."""
 
 from __future__ import annotations
 
@@ -7,6 +7,12 @@ import os
 import sys
 
 MODE = os.environ.get("UNIRUN_COMPAT_SITE")
+_TEST_PATH = os.environ.get("UNIRUN_COMPAT_TESTPATH")
+
+
+def _ensure_test_path() -> None:
+    if _TEST_PATH and _TEST_PATH not in sys.path:
+        sys.path.insert(0, _TEST_PATH)
 
 
 def _install(module_name: str, alias: str) -> None:
@@ -17,6 +23,8 @@ def _install(module_name: str, alias: str) -> None:
         parent = importlib.import_module(parent_name)
         setattr(parent, child_name, module)
 
+
+_ensure_test_path()
 
 if MODE == "managed":
     os.environ.setdefault("UNIRUN_COMPAT_MODE", "managed")

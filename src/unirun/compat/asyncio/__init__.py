@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio as _asyncio
+import importlib
+import pkgutil
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -35,6 +38,29 @@ get_running_loop = _asyncio.get_running_loop
 new_event_loop = _asyncio.new_event_loop
 run = _asyncio.run
 sleep = _asyncio.sleep
+events = _asyncio.events
+
+if hasattr(_asyncio, "__all__"):
+    __all__ = sorted(set(__all__) | set(_asyncio.__all__) | {"events"})
+else:  # pragma: no cover - stdlib always defines __all__
+    __all__.append("events")
+
+
+def _bootstrap_stdlib_submodules() -> None:
+    prefix = f"{_asyncio.__name__}."
+    for _, fullname, _ in pkgutil.walk_packages(_asyncio.__path__, prefix=prefix):
+        try:
+            module = importlib.import_module(fullname)
+        except ImportError:  # pragma: no cover - platform-specific modules
+            continue
+        sys.modules.setdefault(fullname, module)
+        short_name = fullname.removeprefix(prefix)
+        top_level, _, _ = short_name.partition(".")
+        if top_level and not hasattr(sys.modules[__name__], top_level):
+            setattr(sys.modules[__name__], top_level, module)
+
+
+_bootstrap_stdlib_submodules()
 
 
 if _core.should_passthrough():  # pragma: no cover - passthrough validated elsewhere
@@ -70,3 +96,11 @@ else:
             with Run(flavor="auto") as auto:
                 return await loop.run_in_executor(auto, func, *args)
         return await loop.run_in_executor(executor, func, *args)
+
+
+def __getattr__(name: str) -> Any:
+    return getattr(_asyncio, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(dir(_asyncio)))
