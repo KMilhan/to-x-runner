@@ -9,7 +9,6 @@ These tests enforce the guarantees documented in issue #23 and ARCHITECTURE.md:
 from __future__ import annotations
 
 import dataclasses
-
 from typing import cast
 
 from hypothesis import given, settings
@@ -19,8 +18,9 @@ import unirun.scheduler as scheduler_module
 from unirun.capabilities import RuntimeCapabilities
 from unirun.config import RuntimeConfig, ThreadMode
 
-
-EXECUTOR_MODES = st.sampled_from(["auto", "thread", "process", "subinterpreter", "none"])
+EXECUTOR_MODES = st.sampled_from(
+    ["auto", "thread", "process", "subinterpreter", "none"]
+)
 THREAD_MODES = st.sampled_from(["auto", "gil", "nogil"])
 BOOL_OR_NONE = st.one_of(st.none(), st.booleans())
 
@@ -82,8 +82,13 @@ def scheduler_hints(draw: st.DrawFn) -> dict[str, object]:
     caps=capabilities_strategy,
 )
 @settings(max_examples=100, deadline=None)
-def test_resolve_mode_is_pure(mode: str, hints: dict[str, object], config: RuntimeConfig, caps: RuntimeCapabilities) -> None:
-    """Calling `_resolve_mode` twice with identical inputs must return identical tuples."""
+def test_resolve_mode_is_pure(
+    mode: str,
+    hints: dict[str, object],
+    config: RuntimeConfig,
+    caps: RuntimeCapabilities,
+) -> None:
+    """Resolving twice with identical inputs must return identical tuples."""
 
     scheduler = scheduler_module.Scheduler(config=config)
     scheduler._capabilities = caps
@@ -109,7 +114,7 @@ def test_force_threads_overrides_hints(
     force_process_flag: bool,
     hint_force_process: bool,
 ) -> None:
-    """Any explicit force_threads directive (config or hint) must resolve to thread mode."""
+    """Explicit force_threads directives must resolve to thread mode."""
 
     configured = dataclasses.replace(
         config,
@@ -139,7 +144,7 @@ def test_force_process_wins_when_threads_not_forced(
     config: RuntimeConfig,
     caps: RuntimeCapabilities,
 ) -> None:
-    """Force process flags should prevail whenever threads stay unfixed."""
+    """Force process flags should win whenever threads stay unfixed."""
 
     configured = dataclasses.replace(
         config,
@@ -148,7 +153,9 @@ def test_force_process_wins_when_threads_not_forced(
     )
     scheduler = scheduler_module.Scheduler(config=configured)
     scheduler._capabilities = caps
-    forced_hints = {key: value for key, value in hints.items() if key != "force_threads"}
+    forced_hints = {
+        key: value for key, value in hints.items() if key != "force_threads"
+    }
     forced_hints["force_process"] = True
     resolved_mode, _, _ = scheduler._resolve_mode(mode, forced_hints, configured)
     assert resolved_mode == "process"
@@ -156,8 +163,11 @@ def test_force_process_wins_when_threads_not_forced(
 
 @given(thread_mode=THREAD_MODES, caps=capabilities_strategy)
 @settings(max_examples=75, deadline=None)
-def test_thread_mode_cpu_bound_precedence(thread_mode: str, caps: RuntimeCapabilities) -> None:
-    """Resolving CPU-bound workloads must respect thread_mode combined with GIL state."""
+def test_thread_mode_cpu_bound_precedence(
+    thread_mode: str,
+    caps: RuntimeCapabilities,
+) -> None:
+    """Ensure CPU-bound resolution honors thread_mode and GIL state."""
 
     base_config = RuntimeConfig(
         mode="auto",

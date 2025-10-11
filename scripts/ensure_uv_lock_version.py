@@ -25,16 +25,17 @@ def _ensure_version(lock_path: Path, *, version: str, check_only: bool) -> int:
         return 0
 
     if PACKAGE_BLOCK not in contents:
-        print("Could not locate unirun workspace entry inside uv.lock.", file=sys.stderr)
+        print(
+            "Could not locate unirun workspace entry inside uv.lock.",
+            file=sys.stderr,
+        )
         return 1
 
     if check_only:
-        print(
-            "uv.lock is missing `version = \"{version}\"` in the unirun workspace block.".format(
-                version=version
-            ),
-            file=sys.stderr,
+        message = (
+            f"uv.lock is missing `version = \"{version}\"` in the workspace block."
         )
+        print(message, file=sys.stderr)
         return 1
 
     updated = contents.replace(PACKAGE_BLOCK, expected_block, 1)
@@ -48,7 +49,9 @@ def _ensure_version(lock_path: Path, *, version: str, check_only: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Ensure uv.lock records version metadata for the unirun workspace package."
+        description=(
+            "Ensure uv.lock records version metadata for the unirun workspace package."
+        )
     )
     parser.add_argument(
         "--check",
