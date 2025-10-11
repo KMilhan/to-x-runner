@@ -57,7 +57,7 @@ jobs:
           coverage json -o .coverage.json
           python scripts/update_coverage_badges.py --coverage-json .coverage.json
       - name: Publish coverage badges to artifacts branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.python-version == '3.14'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -106,7 +106,7 @@ jobs:
       - name: Generate benchmark badge
         run: python scripts/update_benchmark_badge.py --input benchmark.json --output badges/benchmark.json
       - name: Publish benchmark badge to artifacts branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.python-version == '3.14'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
