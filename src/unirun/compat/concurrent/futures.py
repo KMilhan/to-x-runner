@@ -16,6 +16,7 @@ from concurrent.futures import (  # noqa: F401 (re-exported names)
 )
 from concurrent.futures import ProcessPoolExecutor as StdProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor as StdThreadPoolExecutor
+import warnings
 from typing import Any, TypeVar
 
 from ... import scheduler
@@ -41,6 +42,38 @@ __all__ = [
 
 def _passthrough() -> bool:
     return _core.should_passthrough()
+
+
+_MODE_ALIASES = {
+    "threads": "thread",
+    "processes": "process",
+}
+
+
+def _canonical_mode(mode: str | None) -> str | None:
+    if mode is None:
+        return None
+    return _MODE_ALIASES.get(mode, mode)
+
+
+def _warn_downgrade(
+    label: str,
+    *,
+    reason: str,
+    trace: scheduler.DecisionTrace | None,
+) -> None:
+    """Issue a runtime warning describing a compat downgrade."""
+
+    details = reason
+    if trace is not None:
+        requested = _canonical_mode(trace.mode) or trace.mode
+        resolved = _canonical_mode(trace.resolved_mode) or trace.resolved_mode
+        details = f"{reason} (requested={requested}, resolved={resolved})"
+    warnings.warn(
+        f"{label} downgraded to stdlib behaviour: {details}",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 if _passthrough():  # pragma: no cover - passthrough path validated via smoke tests
@@ -100,11 +133,35 @@ else:
         def __exit__(self, exc_type, exc, tb) -> None:
             self.shutdown(wait=True)
 
-        def _attach_lease(self, lease: ExecutorLease) -> None:
+        def _attach_lease(
+            self,
+            lease: ExecutorLease,
+            *,
+            label: str,
+            expected_modes: tuple[str, ...],
+        ) -> None:
             self._lease = lease
             self._executor = lease.executor
             self._owns_executor = lease.owns_executor
             self.decision = lease.trace
+            self._warn_if_fallback(label=label, expected_modes=expected_modes)
+
+        def _warn_if_fallback(
+            self,
+            *,
+            label: str,
+            expected_modes: tuple[str, ...],
+        ) -> None:
+            trace = self.decision
+            if trace is None:
+                return
+            resolved = _canonical_mode(trace.resolved_mode)
+            expected = {_canonical_mode(mode) for mode in expected_modes}
+            expected.add(_canonical_mode(trace.mode))
+            if resolved not in expected:
+                _warn_downgrade(label, reason=trace.reason, trace=trace)
+            elif "fallback" in trace.reason or "fell back" in trace.reason:
+                _warn_downgrade(label, reason=trace.reason, trace=trace)
 
     class ThreadPoolExecutor(_BaseCompatExecutor):
         """Managed thread pool compat wrapper."""
@@ -120,6 +177,11 @@ else:
             if initializer is not None or initargs:
                 # Defer to the stdlib implementation when initializer
                 # behavior is required.
+                _warn_downgrade(
+                    "ThreadPoolExecutor",
+                    reason="initializer requires stdlib executor",
+                    trace=None,
+                )
                 self._executor = StdThreadPoolExecutor(
                     max_workers=max_workers,
                     thread_name_prefix=thread_name_prefix,
@@ -135,7 +197,11 @@ else:
                 max_workers=max_workers,
                 name=thread_name_prefix or _core.default_thread_name(),
             )
-            self._attach_lease(lease)
+            self._attach_lease(
+                lease,
+                label="ThreadPoolExecutor",
+                expected_modes=("thread", "threads"),
+            )
 
     class ProcessPoolExecutor(_BaseCompatExecutor):
         """Managed process pool compat wrapper."""
@@ -149,6 +215,11 @@ else:
         ) -> None:
             super().__init__()
             if mp_context is not None or initializer is not None or initargs:
+                _warn_downgrade(
+                    "ProcessPoolExecutor",
+                    reason="mp_context or initializer requires stdlib executor",
+                    trace=None,
+                )
                 self._executor = StdProcessPoolExecutor(
                     max_workers=max_workers,
                     mp_context=mp_context,
@@ -163,4 +234,8 @@ else:
                 mode="processes",
                 max_workers=max_workers,
             )
-            self._attach_lease(lease)
+            self._attach_lease(
+                lease,
+                label="ProcessPoolExecutor",
+                expected_modes=("process", "processes"),
+            )

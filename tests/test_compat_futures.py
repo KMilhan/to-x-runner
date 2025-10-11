@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from concurrent.futures import ThreadPoolExecutor as StdThreadPoolExecutor
 from types import ModuleType
 
 import pytest
@@ -64,9 +65,38 @@ def test_thread_pool_executor_initializer_fallback(
     def init() -> None:
         calls.append(1)
 
-    with compat_futures.ThreadPoolExecutor(initializer=init) as executor:
-        assert executor.submit(lambda: 1).result() == 1
+    warning = "initializer requires stdlib executor"
+    with pytest.warns(RuntimeWarning, match=warning):
+        with compat_futures.ThreadPoolExecutor(initializer=init) as executor:
+            assert executor.submit(lambda: 1).result() == 1
     assert calls
+
+
+def test_process_executor_warns_on_scheduler_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unirun.compat.concurrent import futures as compat_futures
+
+    def fake_lease_executor(*args, **kwargs):
+        executor = StdThreadPoolExecutor(max_workers=1)
+        trace = scheduler.DecisionTrace(
+            mode="processes",
+            hints={},
+            resolved_mode="thread",
+            reason="forced to thread pool via configuration",
+        )
+        return scheduler.ExecutorLease(
+            executor=executor,
+            owns_executor=True,
+            trace=trace,
+        )
+
+    monkeypatch.setattr(compat_futures.scheduler, "lease_executor", fake_lease_executor)
+
+    match = "thread pool via configuration"
+    with pytest.warns(RuntimeWarning, match=match):
+        with compat_futures.ProcessPoolExecutor(max_workers=1):
+            pass
 
 
 def test_observe_decisions_with_compat_executor(
