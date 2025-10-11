@@ -19,6 +19,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install uv
         uses: astral-sh/setup-uv@v1
+      - name: Verify uv.lock workspace metadata
+        run: python scripts/ensure_uv_lock_version.py --check
       - name: Install project
         run: uv sync --extra benchmark --python ${{ matrix.python }}
       - name: Run stdlib compat parity

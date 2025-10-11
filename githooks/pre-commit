@@ -8,3 +8,8 @@ fi
 
 echo "[unirun] running lint-check via uv"
 make lint-check
+
+if [ -f uv.lock ]; then
+  echo "[unirun] verifying uv.lock workspace version"
+  python scripts/ensure_uv_lock_version.py --check
+fi

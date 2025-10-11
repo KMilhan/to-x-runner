@@ -22,6 +22,12 @@ contract-versions:
 		uv run --python $$py pytest tests/test_cpython_contracts.py || exit $$?; \
 	done
 
+lock-fix:
+	python scripts/ensure_uv_lock_version.py
+
+lock-check:
+	python scripts/ensure_uv_lock_version.py --check
+
 mutation:
 	uv run mutmut run
 
