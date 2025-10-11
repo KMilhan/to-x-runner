@@ -7,6 +7,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 try:
     import tomllib
@@ -14,7 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-def load_project() -> dict[str, object]:
+def load_project() -> dict[str, Any]:
     project = Path("pyproject.toml")
     return tomllib.loads(project.read_text(encoding="utf-8"))
 
@@ -48,17 +49,19 @@ def normalize_dependency(
 
 def load_group(group: str) -> list[str]:
     data = load_project()
-    groups = data.get("dependency-groups") or {}
+    groups_obj = data.get("dependency-groups") or {}
+    groups = cast(dict[str, Any], groups_obj)
     if not isinstance(groups, dict):
         raise SystemExit("Invalid dependency-groups structure in pyproject.toml.")
-    raw_deps = groups.get(group)
+    raw_deps = cast(list[Any] | None, groups.get(group))
     if raw_deps is None:
         raise SystemExit(f"Dependency group '{group}' not found in pyproject.toml.")
     if not isinstance(raw_deps, list):
         raise SystemExit(f"Dependency group '{group}' must be a list of requirements.")
-    sources = data.get("tool", {}).get("uv", {}).get("sources", {})  # type: ignore[call-arg]
-    if not isinstance(sources, dict):
-        sources = {}
+    tool_cfg = cast(dict[str, Any], data.get("tool", {}))
+    uv_cfg = cast(dict[str, Any], tool_cfg.get("uv", {}))
+    sources_obj = cast(dict[str, Any], uv_cfg.get("sources", {}))
+    sources = sources_obj if isinstance(sources_obj, dict) else {}
     normalized = [
         normalize_dependency(str(dep), sources)  # type: ignore[arg-type]
         for dep in raw_deps
