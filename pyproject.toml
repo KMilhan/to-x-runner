@@ -29,6 +29,7 @@ benchmark = []
 [dependency-groups]
 dev = [
     "coverage",
+    "hypothesis",
     "mutmut",
     "pytest",
     "pytest-asyncio",
