@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import sys
 
 import pytest
 
@@ -49,3 +51,30 @@ def test_gather_and_taskgroup_identity() -> None:
     if TaskGroup is not None:
         assert hasattr(asyncio, "TaskGroup")
         assert TaskGroup is asyncio.TaskGroup  # type: ignore[attr-defined]
+
+
+def test_get_event_loop_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    module_name = "unirun.compat.asyncio"
+    original_module = sys.modules.pop(module_name, None)
+
+    with monkeypatch.context() as patch:
+        patch.delattr(asyncio, "get_event_loop", raising=False)
+        compat_asyncio = importlib.import_module(module_name)
+        loop = compat_asyncio.get_event_loop()
+        try:
+            assert isinstance(loop, asyncio.AbstractEventLoop)
+        finally:
+            loop.close()
+            policy = asyncio.get_event_loop_policy()
+            set_loop = getattr(policy, "set_event_loop", None)
+            if set_loop is not None:
+                try:
+                    set_loop(None)
+                except Exception:
+                    pass
+    sys.modules.pop(module_name, None)
+    if original_module is not None:
+        sys.modules[module_name] = original_module
+        importlib.reload(original_module)
+    else:
+        importlib.import_module(module_name)

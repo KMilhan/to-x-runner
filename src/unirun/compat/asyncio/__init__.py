@@ -30,7 +30,27 @@ Future = _asyncio.Future
 Task = _asyncio.Task
 TaskGroup = getattr(_asyncio, "TaskGroup", None)
 gather = _asyncio.gather
-get_event_loop = _asyncio.get_event_loop
+
+try:
+    get_event_loop = _asyncio.get_event_loop
+except AttributeError:  # pragma: no cover - exercised via fallback test
+
+    def get_event_loop() -> _asyncio.AbstractEventLoop:
+        """Mimic the removed ``asyncio.get_event_loop`` helper on 3.14+."""
+
+        try:
+            return _asyncio.get_running_loop()
+        except RuntimeError:
+            policy = _asyncio.get_event_loop_policy()
+            try:
+                return policy.get_event_loop()
+            except RuntimeError:
+                loop = policy.new_event_loop()
+                set_loop = getattr(policy, "set_event_loop", None)
+                if set_loop is not None:
+                    set_loop(loop)
+                return loop
+
 get_running_loop = _asyncio.get_running_loop
 new_event_loop = _asyncio.new_event_loop
 run = _asyncio.run
