@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "label": "coverage (lines)",
-  "message": "93.4%",
+  "message": "93.5%",
   "color": "brightgreen",
   "namedLogo": "pytest"
 }
