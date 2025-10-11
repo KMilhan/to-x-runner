@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterable
 from concurrent.futures import (  # noqa: F401 (re-exported names)
     ALL_COMPLETED,
@@ -16,7 +17,6 @@ from concurrent.futures import (  # noqa: F401 (re-exported names)
 )
 from concurrent.futures import ProcessPoolExecutor as StdProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor as StdThreadPoolExecutor
-import warnings
 from typing import Any, TypeVar
 
 from ... import scheduler
