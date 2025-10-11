@@ -58,6 +58,9 @@ coroutine signature, so existing call sites keep working unchanged. Swap in the
 matching `unirun` helper only when you want tuned defaults or automatic
 capability detection—the underlying objects and futures stay the same.
 
+📚 Read the step-by-step [compat migration guide](docs/compat-migration.md) when
+you are ready to adopt `unirun.compat` across a codebase.
+
 | Keep this stdlib call                     | Optional helper when you want a boost   | What changes when you upgrade            |
 | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- |
 | `Executor.submit(...).result()`          | `Run(flavor="auto")` scope               | Capability-aware executor picked for you |
