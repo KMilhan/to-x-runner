@@ -71,6 +71,9 @@ paths_to_mutate = ["src/unirun"]
 tests_dirs = ["tests"]
 runner = "python -m pytest"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"

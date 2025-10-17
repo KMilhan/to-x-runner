@@ -186,6 +186,12 @@ hatch build
 hatch publish
 ```
 
+CI now drives the same steps via GitHub Actions. Pushing a tag that matches
+`v*` triggers the `Publish Package` workflow, which runs `uvx --python 3.14 hatch build`
+and publishes to PyPI using trusted publishing. See
+[`docs/release-checklist.md`](docs/release-checklist.md) for the full release
+checklist, including RC guidance and burn-in expectations.
+
 ## Quick Start
 
 ### Automatic execution in one call
