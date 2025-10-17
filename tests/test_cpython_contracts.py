@@ -26,6 +26,25 @@ CONTRACT_MODULES = [
 ]
 
 
+def _ensure_stdlib_test_package(test_src: Path) -> None:
+    """Mirror CPython's Lib/test into the active interpreter if it is missing."""
+
+    target = INSTALLED_LIB_DIR / "test"
+    if target.exists():
+        return
+    if target.is_symlink():
+        try:
+            target.unlink()
+        except OSError:
+            return
+    if not test_src.exists():
+        return
+    try:
+        target.symlink_to(test_src, target_is_directory=True)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform variance
+        shutil.copytree(test_src, target, dirs_exist_ok=True)
+
+
 def _version_tag() -> str:
     vi = sys.version_info
     base = f"{vi.major}.{vi.minor}.{vi.micro}"
@@ -46,6 +65,7 @@ def _ensure_downloaded_tests() -> Path | None:
     target = cache_root / f"cpython-{tag}"
     lib_dir = target / "Lib"
     if lib_dir.exists():
+        _ensure_stdlib_test_package(lib_dir / "test")
         return lib_dir
 
     url = f"https://github.com/python/cpython/archive/refs/tags/v{tag}.tar.gz"
@@ -63,6 +83,7 @@ def _ensure_downloaded_tests() -> Path | None:
         print(f"Failed to download CPython sources: {exc}")
         return None
 
+    _ensure_stdlib_test_package(lib_dir / "test")
     return lib_dir if lib_dir.exists() else None
 
 
